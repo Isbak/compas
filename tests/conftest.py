@@ -173,6 +173,12 @@ class FakeNavigateClient:
                            "artifact_id": "artifact-001", "confidence": 0.7,
                            "source_text": "x", "created_at": None}], limit, offset)
 
+    def knowledge_relationships(self, object_id, *, limit=200, offset=0):
+        self._maybe_fail()
+        items = [r for r in RELATIONSHIPS
+                 if r["source_object"] == object_id or r["target_object"] == object_id]
+        return _paginate(items, limit, offset)
+
     def knowledge_action(self, object_id, action):
         self._maybe_fail()
         self.actions.append((object_id, action))
