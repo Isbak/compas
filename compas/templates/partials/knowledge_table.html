@@ -2,8 +2,8 @@
 <div class="table-wrap">
   <table>
     <thead>
-      <tr><th>Name</th><th>Type</th><th>Confidence</th><th class="num">Evidence</th>
-          <th class="num">Rel.</th><th>Owner</th><th>Review</th><th>Quality</th><th></th></tr>
+      <tr><th>Name</th><th>Type</th><th>Confidence</th><th>Owner</th>
+          <th>Status</th><th>Review</th><th>Quality</th><th></th></tr>
     </thead>
     <tbody>
     {% for o in page_obj.items %}
@@ -11,9 +11,8 @@
         <td><a href="/knowledge/{{ o.id }}"><strong>{{ o.name }}</strong></a></td>
         <td>{{ type_dot(o.type) }} {{ o.type }}</td>
         <td>{{ confidence(o.confidence) }}</td>
-        <td class="num">{{ o.evidence_count }}</td>
-        <td class="num">{{ o.relationship_count }}</td>
         <td class="muted">{{ o.owner or '—' }}</td>
+        <td>{{ badge(o.status) }}</td>
         <td><span id="rev-{{ o.id }}">{{ badge(o.review_status) }}</span></td>
         <td>{{ quality(o.quality_score) }}</td>
         <td>
@@ -25,7 +24,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="9" class="empty">No knowledge objects match these filters.</td></tr>
+      <tr><td colspan="8" class="empty">No knowledge objects match these filters.</td></tr>
     {% endfor %}
     </tbody>
   </table>

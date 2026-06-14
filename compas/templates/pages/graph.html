@@ -60,7 +60,7 @@
   function showDetail(n) {
     var d = document.getElementById('graph-detail');
     d.innerHTML = '<div class="muted">Loading…</div>';
-    compas.fetchJSON('/api/knowledge/' + n.id).then(function (o) {
+    compas.fetchJSON('/graph/object/' + n.id).then(function (o) {
       var rels = '';
       Object.keys(o.relationships).forEach(function (p) {
         rels += '<div class="rel-group"><div class="pred">' + p.replace(/_/g,' ') + '</div>';
@@ -82,7 +82,7 @@
   }
 
   function expandNode(id) {
-    compas.fetchJSON('/api/graph/neighbors/' + id + '?depth=1').then(function (p) {
+    compas.fetchJSON('/graph/neighbors/' + id + '?depth=1').then(function (p) {
       GV.setData(p, { merge: true });
     });
   }
@@ -91,7 +91,7 @@
     var mode = document.getElementById('graph-mode').value;
     var conf = (document.getElementById('graph-conf').value / 100);
     var focusName = document.getElementById('graph-search').value;
-    var url = '/api/graph?mode=' + mode + '&min_confidence=' + conf;
+    var url = '/graph/data?mode=' + mode + '&min_confidence=' + conf;
     if (focusName && nameToId[focusName]) url += '&focus=' + nameToId[focusName] + '&depth=2';
     compas.fetchJSON(url).then(function (p) {
       GV.setData(p);
@@ -104,7 +104,7 @@
     var to = nameToId[document.getElementById('path-to').value];
     var box = document.getElementById('path-result');
     if (!from || !to) { box.innerHTML = '<div class="faint">Pick two known nodes.</div>'; return; }
-    compas.fetchJSON('/api/graph/path?source=' + from + '&target=' + to).then(function (r) {
+    compas.fetchJSON('/graph/path?source=' + from + '&target=' + to).then(function (r) {
       if (!r.found) { box.innerHTML = '<div class="faint">No path found.</div>'; return; }
       var html = '<div class="card" style="padding:10px"><strong>' + r.length + ' hops</strong>';
       r.steps.forEach(function (s) {
@@ -113,7 +113,7 @@
       html += '</div>';
       box.innerHTML = html;
       // Ensure path nodes are present, then highlight.
-      compas.fetchJSON('/api/graph/neighbors/' + from + '?depth=' + r.length).then(function (p) {
+      compas.fetchJSON('/graph/neighbors/' + from + '?depth=' + r.length).then(function (p) {
         GV.setData(p, { merge: true });
         GV.setPath(r.nodes.map(function (n) { return n.id; }));
       });
@@ -128,7 +128,7 @@
     document.getElementById('graph-search').addEventListener('change', loadGraph);
     {% if request.query_params.get('focus') %}
       document.getElementById('graph-search').value = '';
-      compas.fetchJSON('/api/graph/neighbors/{{ request.query_params.get("focus") }}?depth=2').then(function (p) {
+      compas.fetchJSON('/graph/neighbors/{{ request.query_params.get("focus") }}?depth=2').then(function (p) {
         GV.setData(p); GV.focusNode('{{ request.query_params.get("focus") }}');
       });
     {% else %}

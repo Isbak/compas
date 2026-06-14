@@ -4,13 +4,14 @@
 {% block content %}
 <div class="page-head"><div><h1>Governance Center</h1><div class="sub">Review, approve and keep your knowledge healthy.</div></div></div>
 
+{% macro hpct(v) %}{{ (v ~ '%') if v is not none else '—' }}{% endmacro %}
 <div class="grid cards mb">
   {% set h = health %}
-  <div class="card stat"><div class="label">Quality Score</div><div class="value num">{{ h.quality_score }}</div></div>
-  <div class="card stat"><div class="label">Freshness</div><div class="value num">{{ h.freshness }}%</div></div>
-  <div class="card stat"><div class="label">Review Coverage</div><div class="value num">{{ h.review_coverage }}%</div></div>
-  <div class="card stat"><div class="label">Evidence Coverage</div><div class="value num">{{ h.evidence_coverage }}%</div></div>
-  <div class="card stat"><div class="label">Relationship Coverage</div><div class="value num">{{ h.relationship_coverage }}%</div></div>
+  <div class="card stat"><div class="label">Quality Score</div><div class="value num">{{ h.quality_score if h.quality_score is not none else '—' }}</div></div>
+  <div class="card stat"><div class="label">Freshness</div><div class="value num">{{ hpct(h.freshness) }}</div></div>
+  <div class="card stat"><div class="label">Review Coverage</div><div class="value num">{{ hpct(h.review_coverage) }}</div></div>
+  <div class="card stat"><div class="label">Evidence Coverage</div><div class="value num">{{ hpct(h.evidence_coverage) }}</div></div>
+  <div class="card stat"><div class="label">Relationship Coverage</div><div class="value num">{{ hpct(h.relationship_coverage) }}</div></div>
 </div>
 
 <div class="grid" style="grid-template-columns:1fr 1fr;">

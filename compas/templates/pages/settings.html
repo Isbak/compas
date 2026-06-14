@@ -2,56 +2,41 @@
 {% from "macros.html" import badge %}
 {% block title %}Settings{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Settings</h1><div class="sub">Local-first configuration. Set via environment variables (prefixed <code>COMPAS_</code>) or a <code>.env</code> file.</div></div></div>
+<div class="page-head"><div><h1>Settings</h1><div class="sub">Compas is a pure client of the Navigate REST API. Configure via environment variables (prefixed <code>COMPAS_</code>) or a <code>.env</code> file.</div></div></div>
 
 <div class="grid" style="grid-template-columns:1fr 1fr;">
   <div class="card">
-    <h3>Catalog &amp; Sources</h3>
+    <h3>Navigate API</h3>
     <dl class="kv">
-      <dt>Catalog database</dt><dd class="mono">{{ settings.database_path }}</dd>
-      <dt>Mode</dt><dd>{{ 'Read-only' if settings.read_only else 'Read-write (governance)' }}</dd>
-      <dt>Demo data</dt><dd>{{ 'Enabled' if settings.demo_mode else 'Disabled' }}</dd>
-      <dt>Page size</dt><dd>{{ settings.page_size }}</dd>
+      <dt>Endpoint</dt><dd class="mono">{{ settings.navigate_api_url }}</dd>
+      <dt>Auth</dt><dd>{{ 'Bearer token set' if settings.navigate_api_key else 'None (open)' }}</dd>
+      <dt>Status</dt>
+      <dd>{% if health and health.status in ('ok','healthy') %}{{ badge('active') }} reachable
+          {% else %}{{ badge('warning') }} {{ health.message or health.status or 'unreachable' }}{% endif %}</dd>
+      <dt>Version</dt><dd>{{ health.version if health else '—' }}</dd>
+      <dt>Timeout</dt><dd>{{ settings.navigate_timeout }}s ({{ settings.navigate_ask_timeout }}s for /ask)</dd>
     </dl>
-    <p class="faint">Source folders are configured in Navigate (<code>config/sources.yml</code>). Compas reads the resulting catalog.</p>
+    <p class="faint">Source folders, LLM providers, Ollama/OpenAI models, the Fuseki
+       endpoint and governance rules are all configured in <strong>Navigate</strong>
+       and surfaced through its API. Compas adds no settings of its own beyond the connection.</p>
   </div>
 
   <div class="card">
-    <h3>LLM Provider</h3>
+    <h3>Display</h3>
     <dl class="kv">
-      <dt>Provider</dt><dd><span class="chip">{{ settings.llm_provider }}</span></dd>
-      <dt>Ollama endpoint</dt><dd class="mono">{{ settings.ollama_endpoint }}</dd>
-      <dt>Ollama model</dt><dd>{{ settings.ollama_model }}</dd>
-      <dt>OpenAI model</dt><dd>{{ settings.openai_model }}</dd>
-    </dl>
-  </div>
-
-  <div class="card">
-    <h3>Graph &amp; Fuseki</h3>
-    <dl class="kv">
-      <dt>Fuseki endpoint</dt><dd class="mono">{{ settings.fuseki_endpoint }}</dd>
-      <dt>Status</dt><dd>{{ badge('active' if fuseki.reachable else ('warning' if fuseki.enabled else 'archived')) }} {{ fuseki.message }}</dd>
+      <dt>Page size</dt><dd>{{ settings.page_size }} (Navigate limit, max {{ settings.max_page_size }})</dd>
       <dt>Graph node limit</dt><dd>{{ settings.graph_node_limit }}</dd>
-    </dl>
-  </div>
-
-  <div class="card">
-    <h3>GraphRAG &amp; Governance</h3>
-    <dl class="kv">
-      <dt>GraphRAG</dt><dd>{{ 'Remote' if settings.graphrag_enabled else 'Local (built-in)' }}</dd>
-      <dt>Endpoint</dt><dd class="mono">{{ settings.graphrag_endpoint or '—' }}</dd>
-      <dt>Review interval</dt><dd>{{ settings.review_interval_days }} days</dd>
-      <dt>Stale after</dt><dd>{{ settings.stale_after_days }} days</dd>
+      <dt>Ask depth</dt><dd>{{ settings.ask_depth }}</dd>
     </dl>
   </div>
 </div>
 
 <div class="card mt">
-  <h3>Security</h3>
+  <h3>Security &amp; local-first</h3>
   <ul class="muted">
-    <li>Local-first: Compas binds to localhost and makes <strong>no external calls</strong> unless Fuseki or a remote GraphRAG endpoint are explicitly enabled.</li>
-    <li>No automatic cloud upload. Source documents are never moved or modified.</li>
-    <li>Secrets (API keys) are read from the environment and never written to the catalog.</li>
+    <li>Compas binds to localhost and talks only to the configured Navigate API.</li>
+    <li>The browser never calls Navigate directly — Compas proxies server-side, so the API key never reaches the client.</li>
+    <li>No API or database of its own; Navigate remains the single system of record.</li>
   </ul>
 </div>
 {% endblock %}

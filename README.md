@@ -2,118 +2,103 @@
 
 **A local-first knowledge observatory — the web dashboard for [Navigate](https://github.com/isbak/navigate).**
 
-Compas is the primary user interface for the Navigate knowledge platform. It
-reads Navigate's SQLite catalog (the system of record), the Apache Jena Fuseki
-graph and the GraphRAG assistant, and presents a single interface to
-**discover knowledge, understand relationships, review evidence, govern
-knowledge, ask questions and navigate your organisation's collective memory.**
+Compas is the primary user interface for the Navigate knowledge platform. It is
+a **pure client of Navigate's REST API** — it builds **no API and no database of
+its own**. Every page is rendered from data fetched from a running Navigate API
+(`catalog api`), giving a single interface to **discover knowledge, understand
+relationships, review evidence, govern knowledge, ask questions and navigate
+your organisation's collective memory.**
 
 ```
-Filesystem → Scanner → SQLite → Document Cache → Link Discovery →
-Semantic Classification → Knowledge Consolidation → RDF Export →
-Jena Fuseki → GraphRAG Assistant → ✦ Compas (this dashboard)
+Navigate  (Filesystem → Scanner → SQLite → … → Fuseki → GraphRAG → REST API)
+                                                                    │  /api
+                                                                    ▼
+                                                          ✦ Compas (this UI)
 ```
 
 ## Highlights
 
-- **Local-first.** Binds to `127.0.0.1` and makes **no external network calls**
-  unless you explicitly enable Fuseki or a remote GraphRAG endpoint. Source
-  documents are never moved or modified.
-- **Minimal JavaScript.** FastAPI + Jinja2 + HTMX. The HTMX-style helper and
-  the graph renderer are **vendored** (no CDNs), so the app works fully offline.
-- **Dark-first, responsive UI** inspired by Obsidian, Linear, GitHub and the
+- **Pure client.** Compas consumes Navigate's documented REST API
+  (`/api/...`). Navigate stays the single source of truth and system of record.
+  The contract Compas codes against is captured in [`docs/navigate-api.md`](docs/navigate-api.md).
+- **Local-first & safe.** Binds to `127.0.0.1`. The **browser only ever talks to
+  Compas**, which proxies to Navigate server-side — so the API key never reaches
+  the client. No external calls beyond the configured Navigate endpoint.
+- **Minimal JavaScript.** FastAPI + Jinja2 + HTMX. The HTMX-style helper and the
+  graph renderer are **vendored** (no CDNs), so the UI works offline.
+- **Dark-first, responsive** design inspired by Obsidian, Linear, GitHub and the
   Neo4j Browser.
-- **Runs out of the box.** On first start, if no catalog is found, Compas seeds
-  a realistic demo catalog so you can explore immediately.
 
 ## Features
 
 | Area | What you get |
 | --- | --- |
-| **Dashboard** | Totals (artifacts, objects, relationships, evidence), approved/pending/stale counts, knowledge-quality score, growth trend, domain overview, recent changes, notifications |
-| **Artifacts** | Filterable, paginated table (type/domain/status/date) with links & knowledge-object counts; per-artifact detail with classification, evidence, links |
-| **Knowledge Objects** | Table (confidence, evidence, relationships, owner, review status, quality) and a rich detail view with evidence, relationships, source documents, history & timeline |
-| **Relationships** | Subject–predicate–object triples with inline approve/reject |
-| **Domains** | Per-domain objects, relationships, quality, freshness, owners |
-| **Governance Center** | Review/approval queues, quality/drift/orphan/duplicate alerts, stale objects, knowledge-health metrics |
-| **Graph Explorer** | Vendored interactive SVG graph: zoom, pan, drag, expand/collapse, search, neighbours, shortest-path explorer, view modes (Capability/Technology/Decision/Team/Process) |
-| **GraphRAG** | Grounded Q&A with answer, confidence, evidence, knowledge objects used and the SPARQL queries — plus "show graph context / evidence / relationships" |
-| **Global Search** | Fuzzy search across objects, artifacts, relationships and domains |
-| **Observability** | Scanner / link / classification jobs, Fuseki sync status, errors & warnings |
-| **Settings** | Catalog, LLM provider, Fuseki, GraphRAG and governance configuration |
+| **Dashboard** | Totals (artifacts, objects, relationships, evidence), approved/pending/stale counts, quality score, review queue, notifications, domain overview |
+| **Artifacts** | Filterable, paginated table (type / scan / extraction / classification) with detail (evidence, links) and re-scan/extract/classify actions that enqueue Navigate jobs |
+| **Knowledge Objects** | Filterable table (confidence, owner, status, review, quality) and a detail view with relationships (graph neighbours), evidence, source documents and inline approve/reject/archive |
+| **Relationships** | Subject–predicate–object triples (names resolved) with inline approve/reject |
+| **Domains** | Per-domain objects (derived from Navigate's governance dashboard) |
+| **Governance** | Review queue, pending relationships, quality/drift/orphan/duplicate alerts, stale objects, knowledge-health metrics |
+| **Graph Explorer** | Vendored interactive SVG graph (zoom, pan, drag, expand, search, shortest path, view modes) backed by Navigate's `/graph/*` endpoints |
+| **GraphRAG** | Navigate's assistant (`/ask`) with answer, confidence band, knowledge objects, relationships and evidence used |
+| **Search** | Fans out across Navigate's `search=` filters for knowledge objects and artifacts |
+| **Observability** | Navigate pipeline jobs, API health, link statistics |
+| **Settings** | Navigate connection + live health |
 
 ## Quick start
 
 ```bash
+# 1. In your Navigate checkout, start the API:
+catalog api                                   # serves http://127.0.0.1:8000
+
+# 2. Run Compas:
 pip install -r requirements.txt
-python -m compas                      # http://127.0.0.1:8000
-# or: uvicorn compas.main:app --reload
+python -m compas                              # http://127.0.0.1:8000 → set a different port if needed
+# or: uvicorn compas.main:app --reload --port 8500
 ```
 
-A demo catalog is seeded automatically. To point Compas at a real Navigate
-catalog, copy `.env.example` to `.env` and set `COMPAS_DATABASE_PATH` to your
-`navigate/data/catalog.sqlite`.
+Point Compas at Navigate via `COMPAS_NAVIGATE_API_URL` (default
+`http://127.0.0.1:8000/api`). If Navigate isn't reachable, Compas shows a clear
+"Navigate API unavailable" page rather than failing opaquely.
 
 ## Configuration
 
-All settings are environment variables prefixed `COMPAS_` (see `.env.example`).
-Key ones:
+Environment variables prefixed `COMPAS_` (see `.env.example`):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `COMPAS_DATABASE_PATH` | `./data/catalog.sqlite` | Navigate's catalog |
-| `COMPAS_READ_ONLY` | `false` | Open the catalog read-only (disables governance writes) |
-| `COMPAS_DEMO_MODE` | `true` | Seed a demo catalog when the database is missing |
-| `COMPAS_FUSEKI_ENABLED` | `false` | Enable SPARQL queries against Jena Fuseki |
-| `COMPAS_GRAPHRAG_ENABLED` | `false` | Delegate Q&A to Navigate's GraphRAG (else answer locally) |
-
-## REST API
-
-`/api` exposes JSON for everything the UI uses:
-
-```
-/api/stats            /api/artifacts        /api/knowledge
-/api/relationships    /api/evidence         /api/domains
-/api/governance       /api/graphrag         /api/search
-/api/graph            /api/graph/path       /api/graph/neighbors/{id}
-/api/notifications    /api/observability    /api/fuseki/status
-```
-
-Interactive docs at `/docs`.
+| `COMPAS_NAVIGATE_API_URL` | `http://127.0.0.1:8000/api` | Navigate REST API base |
+| `COMPAS_NAVIGATE_API_KEY` | _(empty)_ | Bearer token, if Navigate requires one |
+| `COMPAS_PAGE_SIZE` | `50` | Page size (Navigate `limit`) |
+| `COMPAS_GRAPH_NODE_LIMIT` | `250` | Max nodes per graph payload |
+| `COMPAS_ASK_DEPTH` | `2` | GraphRAG retrieval depth |
 
 ## Architecture
 
 ```
 compas/
-├── config.py        # COMPAS_* settings (local-first defaults)
-├── database.py      # SQLAlchemy engine/session for Navigate's catalog
-├── models.py        # ORM mirroring Navigate's catalog schema
-├── repository.py    # All catalog queries (paginated, scalable)
-├── graphrag.py      # Local-first grounded assistant (+ optional remote)
-├── fuseki.py        # Optional SPARQL client
-├── sample_data.py   # Demo catalog seeder
-├── api/             # REST routers
-├── web/             # HTMX page + partial routes
-├── templates/       # Jinja2 (base + pages + partials)
-└── static/          # Vendored compas.js, graph.js, styles.css
+├── config.py            # COMPAS_* settings (Navigate connection)
+├── navigate_client.py   # The ONLY backend: typed client for Navigate's /api
+├── service.py           # Shapes Navigate responses into view-models (Page, etc.)
+├── web/routes.py        # HTMX pages + a few JSON view-helpers for the graph widget
+├── templates/           # Jinja2 (base + pages + partials)
+└── static/              # Vendored compas.js, graph.js, styles.css
+docs/navigate-api.md     # The Navigate REST contract Compas consumes
 ```
 
-Because Compas reads Navigate's catalog directly, the ORM in `models.py` matches
-Navigate's tables 1:1 (`artifacts`, `knowledge_objects`, `knowledge_evidence`,
-`knowledge_relationships`, `knowledge_lifecycle`, `knowledge_quality`,
-`knowledge_alerts`, …).
-
-## Performance
-
-Built for 10,000+ artifacts and 100,000+ relationships: every list is
-paginated, the graph loads incrementally (neighbourhood expansion + node
-limits), and search is bounded. See `tests/test_performance.py`.
+Compas exposes **no** REST API and **no** `/openapi.json`; its only HTTP surface
+is the server-rendered UI (plus small `/graph/*` JSON helpers that feed its own
+graph explorer). Anything the Navigate API doesn't expose (a domains resource, a
+growth trend, a change-log feed, per-row counts) is degraded gracefully rather
+than invented — see the "Gaps" note in `docs/navigate-api.md`.
 
 ## Tests
 
 ```bash
-pytest            # backend, API, UI/HTMX, graph and performance tests
+pytest        # service, client (httpx MockTransport) and UI/HTMX tests
 ```
+
+Tests inject a `FakeNavigateClient`, so no real Navigate server is required.
 
 ## License
 

@@ -13,16 +13,14 @@
     {% for f in filters.file_types %}<option value="{{ f }}" {{ 'selected' if active.file_type==f }}>{{ f }}</option>{% endfor %}
   </select>
   <select name="status">
-    <option value="">All statuses</option>
+    <option value="">All scan statuses</option>
     {% for s in filters.statuses %}<option value="{{ s }}" {{ 'selected' if active.status==s }}>{{ s }}</option>{% endfor %}
   </select>
-  <select name="domain">
-    <option value="">All domains</option>
-    {% for d in filters.domains %}<option value="{{ d }}" {{ 'selected' if active.domain==d }}>{{ d }}</option>{% endfor %}
+  <select name="classification_status">
+    <option value="">All classification states</option>
+    {% for s in filters.classification_statuses %}<option value="{{ s }}" {{ 'selected' if active.classification_status==s }}>{{ s }}</option>{% endfor %}
   </select>
 </form>
 
-<div id="artifacts-table">
-  {% include "partials/artifacts_table.html" %}
-</div>
+<div id="artifacts-table">{% include "partials/artifacts_table.html" %}</div>
 {% endblock %}

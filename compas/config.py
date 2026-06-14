@@ -1,9 +1,12 @@
 """Application configuration.
 
-Settings are loaded from environment variables (prefixed ``COMPAS_``) and an
-optional ``.env`` file. Compas is *local-first*: by default it never reaches
-out to the network. The Fuseki and GraphRAG integrations are only contacted
-when their endpoints are explicitly configured and enabled.
+Compas is a *pure client* of the Navigate REST API — it builds no API or
+database of its own. It talks only to a running Navigate API
+(`catalog api`). Settings come from environment variables (prefixed
+``COMPAS_``) and an optional ``.env`` file.
+
+Compas remains local-first: the API key (if any) stays server-side, and the
+browser only ever talks to Compas, which proxies to Navigate.
 """
 
 from __future__ import annotations
@@ -11,11 +14,8 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Repository root (…/compas)
-ROOT_DIR = Path(__file__).resolve().parent.parent
 PACKAGE_DIR = Path(__file__).resolve().parent
 
 
@@ -33,47 +33,23 @@ class Settings(BaseSettings):
     app_name: str = "Compas"
     debug: bool = False
 
-    #: Path to Navigate's SQLite catalog (the system of record). When this file
-    #: does not exist and ``demo_mode`` is enabled, Compas will create a small
-    #: synthetic catalog so the dashboard is usable out of the box.
-    database_path: Path = Field(default=ROOT_DIR / "data" / "catalog.sqlite")
-
-    #: Open the Navigate catalog read-write so governance actions (approve /
-    #: reject / archive) can be persisted. Navigate remains the system of
-    #: record; Compas only writes review + lifecycle rows.
-    read_only: bool = False
-
-    #: When the catalog is missing, seed a demo catalog instead of failing.
-    demo_mode: bool = True
+    # --- Navigate API (the only backend) -----------------------------------
+    #: Base URL of Navigate's REST API, including the ``/api`` prefix.
+    navigate_api_url: str = "http://127.0.0.1:8000/api"
+    #: Optional bearer token; sent as ``Authorization: Bearer <key>``.
+    navigate_api_key: str = ""
+    #: Request timeout (seconds) for calls to Navigate.
+    navigate_timeout: float = 30.0
+    #: Longer timeout for the GraphRAG ``/ask`` endpoint.
+    navigate_ask_timeout: float = 120.0
 
     # --- Pagination / performance ------------------------------------------
-    page_size: int = 50
-    max_page_size: int = 500
-    #: Maximum number of nodes returned in a single graph payload.
+    page_size: int = 50          # maps to Navigate's ``limit``
+    max_page_size: int = 500     # Navigate's hard cap
     graph_node_limit: int = 250
 
-    # --- Fuseki (SPARQL) ----------------------------------------------------
-    fuseki_enabled: bool = False
-    fuseki_endpoint: str = "http://localhost:3030/navigate"
-    fuseki_timeout: float = 15.0
-
-    # --- GraphRAG assistant -------------------------------------------------
-    #: When disabled, the GraphRAG panel answers from the local graph using a
-    #: deterministic, fully local retriever (no external calls).
-    graphrag_enabled: bool = False
-    #: Optional HTTP endpoint exposing Navigate's GraphRAG assistant.
-    graphrag_endpoint: str = ""
-    graphrag_timeout: float = 60.0
-
-    # --- LLM provider settings (surfaced in Settings page) ------------------
-    llm_provider: str = "ollama"  # ollama | openai | claude
-    ollama_endpoint: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1"
-    openai_model: str = "gpt-4o-mini"
-
-    # --- Governance ---------------------------------------------------------
-    review_interval_days: int = 90
-    stale_after_days: int = 180
+    # --- GraphRAG defaults --------------------------------------------------
+    ask_depth: int = 2
 
     @property
     def static_dir(self) -> Path:
@@ -86,5 +62,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return a cached Settings instance."""
     return Settings()

@@ -2,54 +2,44 @@
 {% from "macros.html" import badge %}
 {% block title %}Observability{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Observability</h1><div class="sub">Pipeline jobs, sync status, errors and warnings.</div></div></div>
+<div class="page-head"><div><h1>Observability</h1><div class="sub">Navigate pipeline jobs, API health and link statistics.</div></div></div>
 
 <div class="grid cards mb">
-  <div class="card stat"><div class="label">Scan errors</div><div class="value num">{{ data.totals.scan_errors }}</div></div>
-  <div class="card stat"><div class="label">Link errors</div><div class="value num">{{ data.totals.link_errors }}</div></div>
-  <div class="card stat"><div class="label">Classification errors</div><div class="value num">{{ data.totals.classification_errors }}</div></div>
-  <div class="card stat"><div class="label">Fuseki</div><div class="value" style="font-size:1rem">{{ badge('active' if data.fuseki.reachable else ('warning' if data.fuseki.enabled else 'archived')) }}</div>
-    <div class="trend faint">{{ data.fuseki.message }}</div></div>
+  <div class="card stat"><div class="label">API status</div>
+    <div class="value" style="font-size:1rem">{{ badge('active' if data.health.status in ('ok','healthy') else 'warning') }}</div>
+    <div class="trend faint">{{ data.health.version or data.health.status }}</div></div>
+  <div class="card stat"><div class="label">Jobs (recent)</div><div class="value num">{{ data.jobs|length }}</div></div>
+  <div class="card stat"><div class="label">Job errors</div><div class="value num {{ 'down' if data.errors }}">{{ data.errors }}</div></div>
+  <div class="card stat"><div class="label">Links</div><div class="value num">{{ data.link_stats.total or 0 }}</div></div>
 </div>
 
 <div class="card mb">
-  <h3>Scanner Jobs</h3>
+  <h3>Pipeline Jobs</h3>
   <table>
-    <thead><tr><th>Started</th><th>Files</th><th>New</th><th>Changed</th><th>Deleted</th><th>Dup</th></tr></thead>
+    <thead><tr><th>#</th><th>Type</th><th>Status</th><th>Started</th><th>Completed</th><th>Detail</th></tr></thead>
     <tbody>
-    {% for j in data.scan_jobs %}
-      <tr><td class="muted">{{ j.started_at|timeago }}</td><td class="num">{{ j.files_scanned }}</td>
-        <td class="num">{{ j.new }}</td><td class="num">{{ j.changed }}</td>
-        <td class="num">{{ j.deleted }}</td><td class="num">{{ j.duplicate }}</td></tr>
-    {% else %}<tr><td colspan="6" class="empty">No scan jobs.</td></tr>{% endfor %}
+    {% for j in data.jobs %}
+      <tr>
+        <td class="num">{{ j.id }}</td>
+        <td><span class="chip">{{ j.job_type }}</span></td>
+        <td>{{ badge(j.status) }}</td>
+        <td class="muted">{{ j.started_at|timeago }}</td>
+        <td class="muted">{{ j.completed_at|timeago }}</td>
+        <td class="faint">{{ j.error_message or (j.result_summary|string if j.result_summary else '—') | truncate(60, true) }}</td>
+      </tr>
+    {% else %}<tr><td colspan="6" class="empty">No jobs recorded.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>
 
-<div class="grid" style="grid-template-columns:1fr 1fr;">
-  <div class="card">
-    <h3>Link Discovery</h3>
-    <table>
-      <thead><tr><th>Started</th><th>Found</th><th>New</th><th>Errors</th></tr></thead>
-      <tbody>
-      {% for j in data.link_jobs %}
-        <tr><td class="muted">{{ j.started_at|timeago }}</td><td class="num">{{ j.links_found }}</td>
-          <td class="num">{{ j.new }}</td><td class="num {{ 'down' if j.errors }}">{{ j.errors }}</td></tr>
-      {% else %}<tr><td colspan="4" class="empty">No link jobs.</td></tr>{% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <div class="card">
-    <h3>Classification &amp; Consolidation</h3>
-    <table>
-      <thead><tr><th>Started</th><th>Model</th><th>Processed</th><th>Errors</th></tr></thead>
-      <tbody>
-      {% for j in data.classification_jobs %}
-        <tr><td class="muted">{{ j.started_at|timeago }}</td><td><span class="chip">{{ j.model }}</span></td>
-          <td class="num">{{ j.processed }}</td><td class="num {{ 'down' if j.errors }}">{{ j.errors }}</td></tr>
-      {% else %}<tr><td colspan="4" class="empty">No classification jobs.</td></tr>{% endfor %}
-      </tbody>
-    </table>
+{% if data.link_stats.by_target_system %}
+<div class="card">
+  <h3>Links by target system</h3>
+  <div class="flex wrap gap">
+    {% for c in data.link_stats.by_target_system %}
+    <span class="chip">{{ c.value or c.name or c.key }} · <strong>{{ c.count }}</strong></span>
+    {% endfor %}
   </div>
 </div>
+{% endif %}
 {% endblock %}
