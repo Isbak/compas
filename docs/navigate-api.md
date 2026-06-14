@@ -1,0 +1,100 @@
+# Navigate REST API (consumed by Compas)
+
+Compas is a **pure client** of the Navigate REST API — it builds no API of its
+own. This document is the contract Compas codes against. Source of truth:
+[`isbak/navigate`](https://github.com/isbak/navigate) → `src/catalog/api`.
+
+Start the API from Navigate:
+
+```bash
+catalog api --host 127.0.0.1 --port 8000     # Swagger at /docs, schema at /openapi.json
+```
+
+## Conventions
+
+- **Base path:** `/api` (e.g. `http://127.0.0.1:8000/api`).
+- **Auth:** optional. When enabled, send `Authorization: Bearer <key>`.
+- **Pagination:** list endpoints take `limit` (default 50, max 500) and
+  `offset` (default 0) and return the envelope:
+  `{ "items": [...], "limit": int, "offset": int, "total": int }`.
+- **Errors:** `{ "error": str, "message": str, "details": {...} }`.
+
+## Endpoints
+
+### Base
+- `GET /health` → `HealthResponse { status, database, version }`
+- `GET /stats` → `StatsResponse { artifact_count, link_count, knowledge_object_count, relationship_count, evidence_count, pending_review_count, stale_object_count }`
+
+### Artifacts
+- `GET /artifacts` — filters: `file_type, scan_status, extraction_status, classification_status, search` → `Paginated[Artifact]`
+- `GET /artifacts/{artifact_id}` → `Artifact`
+- `GET /artifacts/{artifact_id}/links` → `Paginated[Link]`
+- `GET /artifacts/{artifact_id}/evidence` → `Paginated[Evidence]`
+- `POST /artifacts/{artifact_id}/rescan|extract|classify` → `Job`
+
+`Artifact { id, path, filename, file_type, size_bytes?, created_at?, modified_at?, sha256?, source_system?, scan_status?, first_seen_at?, last_scanned_at?, extraction_status, classification_status }`
+
+### Links
+- `GET /links` — filters: `source_artifact_id, target_system, target_type, link_kind, status` → `Paginated[Link]`
+- `GET /links/stats` → `LinkStats { total, by_target_system[], by_target_type[], by_link_kind[] }`
+- `GET /links/top-targets?limit=20` → `[TopTarget { url, count }]`
+
+### Knowledge objects  (note: path is `/knowledge-objects`)
+- `GET /knowledge-objects` — filters: `object_type, status, review_status, owner, domain, min_confidence, search` → `Paginated[KnowledgeObject]`
+- `GET /knowledge-objects/{object_id}` → `KnowledgeObject`
+- `GET /knowledge-objects/{object_id}/relationships` → `Paginated[Relationship]`
+- `GET /knowledge-objects/{object_id}/evidence` → `Paginated[Evidence]`
+- `GET /knowledge-objects/{object_id}/mentions` → `Paginated[Mention]`
+- `POST /knowledge-objects/{object_id}/approve|reject|archive` → `ActionResponse { id, status, message }`
+
+`KnowledgeObject { id, name, object_type, description?, canonical_name?, confidence?, status?, merge_confidence?, created_at?, updated_at?, review_status?, freshness_state?, quality_score?, owner? }`
+
+### Relationships
+- `GET /relationships` — filters: `source_object_id, target_object_id, predicate, review_status, min_confidence` → `Paginated[Relationship]`
+- `GET /relationships/{relationship_id}` → `Relationship`
+- `POST /relationships/{relationship_id}/approve|reject` → `ActionResponse`
+
+`Relationship { id, source_object, predicate, target_object, confidence?, evidence?, review_status?, created_at?, updated_at? }`
+
+### Evidence
+- `GET /evidence` — filters: `artifact_id, knowledge_object_id, relationship_id` → `Paginated[Evidence]`
+- `GET /evidence/{evidence_id}` → `Evidence`
+
+`Evidence { id, knowledge_object_id, artifact_id, quote?, page_number?, slide_number?, confidence?, created_at? }`
+
+### Graph
+- `GET /graph/nodes` → `Paginated[GraphNode]`
+- `GET /graph/edges` → `Paginated[GraphEdge]`
+- `GET /graph/object/{object_id}/neighbors` → `NeighborsResponse { object_id, neighbors: { predicate: [GraphNeighbor{ id, label, type, direction }] } }`
+- `GET /graph/object/{object_id}/impact` → `ImpactResponse`
+- `GET /graph/path?source=&target=&max_depth=` → `PathResponse { source, target, found, hops: [PathHop{ from, to, predicate, forward }] }`
+- `GET /graph/export-json` → `GraphExport { nodes: [GraphNode], edges: [GraphEdge] }`
+
+`GraphNode { id, label, type, confidence?, status?, documents?, mentions? }`
+`GraphEdge { id, source, target, predicate, confidence?, status? }`
+
+### Governance
+- `GET /governance/dashboard` → `dict`
+- `GET /governance/review-queue` → `[ReviewQueueItem { object_id, name?, object_type?, review_state?, freshness_state?, last_confidence? }]`
+- `GET /governance/stale` → `[StaleItem { object_id, name?, object_type?, freshness_state?, freshness_score?, last_seen_at? }]`
+- `GET /governance/orphaned` → `dict`
+- `GET /governance/alerts?alert_type=&severity=` → `[GovernanceAlert { id, alert_type, severity, object_id?, message?, status?, created_at?, resolved_at? }]`
+- `GET /governance/quality?ascending=false` → `QualityResponse { average_quality, items: [QualityItem{ object_id, canonical_name?, object_type?, quality_score?, evidence_count?, document_count? }] }`
+
+### GraphRAG
+- `POST /ask` — body `AskRequest { question, depth, show_context, show_evidence }` →
+  `AskResponse { answer, confidence (band string), objects_used[], relationships_used[], evidence_used[], context? }`
+
+### Jobs (async pipeline)
+- `POST /jobs/scan|extract|discover-links|classify|consolidate` → `Job`
+- `GET /jobs?job_type=&status=` → `Paginated[Job]`
+- `GET /jobs/{job_id}` → `Job`
+
+`Job { id, job_type, status, started_at?, completed_at?, error_message?, result_summary?, created_at? }`
+
+## Gaps Compas works around
+
+The API does not (yet) expose: a distinct **domains** resource, a knowledge
+**growth trend**, a **change log / recent changes** feed, or per-row evidence/
+relationship **counts** in list responses. Compas degrades gracefully where a
+datum isn't available rather than inventing it.

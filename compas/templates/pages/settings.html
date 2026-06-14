@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Settings</h1><div class="sub">Compas is a pure client of the Navigate REST API. Configure via environment variables (prefixed <code>COMPAS_</code>) or a <code>.env</code> file.</div></div></div>
+
+<div class="grid" style="grid-template-columns:1fr 1fr;">
+  <div class="card">
+    <h3>Navigate API</h3>
+    <dl class="kv">
+      <dt>Endpoint</dt><dd class="mono">{{ settings.navigate_api_url }}</dd>
+      <dt>Auth</dt><dd>{{ 'Bearer token set' if settings.navigate_api_key else 'None (open)' }}</dd>
+      <dt>Status</dt>
+      <dd>{% if health and health.status in ('ok','healthy') %}{{ badge('active') }} reachable
+          {% else %}{{ badge('warning') }} {{ health.message or health.status or 'unreachable' }}{% endif %}</dd>
+      <dt>Version</dt><dd>{{ health.version if health else '—' }}</dd>
+      <dt>Timeout</dt><dd>{{ settings.navigate_timeout }}s ({{ settings.navigate_ask_timeout }}s for /ask)</dd>
+    </dl>
+    <p class="faint">Source folders, LLM providers, Ollama/OpenAI models, the Fuseki
+       endpoint and governance rules are all configured in <strong>Navigate</strong>
+       and surfaced through its API. Compas adds no settings of its own beyond the connection.</p>
+  </div>
+
+  <div class="card">
+    <h3>Display</h3>
+    <dl class="kv">
+      <dt>Page size</dt><dd>{{ settings.page_size }} (Navigate limit, max {{ settings.max_page_size }})</dd>
+      <dt>Graph node limit</dt><dd>{{ settings.graph_node_limit }}</dd>
+      <dt>Ask depth</dt><dd>{{ settings.ask_depth }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card mt">
+  <h3>Security &amp; local-first</h3>
+  <ul class="muted">
+    <li>Compas binds to localhost and talks only to the configured Navigate API.</li>
+    <li>The browser never calls Navigate directly — Compas proxies server-side, so the API key never reaches the client.</li>
+    <li>No API or database of its own; Navigate remains the single system of record.</li>
+  </ul>
+</div>
+{% endblock %}

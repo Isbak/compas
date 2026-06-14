@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, type_dot, confidence, quality %}
+{% block title %}{{ obj.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/knowledge">Knowledge</a> / {{ type_dot(obj.type) }} {{ obj.type }}</div>
+    <h1>{{ obj.name }}</h1>
+    <div class="flex gap items-center wrap">
+      <span id="obj-status">{{ badge(obj.status) }}</span>
+      {% if obj.lifecycle and obj.lifecycle.freshness_state %}{{ badge(obj.lifecycle.freshness_state) }}{% endif %}
+    </div>
+  </div>
+  <div class="btn-group">
+    <a class="btn" href="/graph?focus={{ obj.id }}">✦ Show in graph</a>
+    <button class="btn btn-success" hx-post="/knowledge/{{ obj.id }}/review"
+            hx-vals='{"action":"approve"}' hx-target="#obj-status" hx-swap="innerHTML">Approve</button>
+    <button class="btn btn-danger" hx-post="/knowledge/{{ obj.id }}/review"
+            hx-vals='{"action":"reject"}' hx-target="#obj-status" hx-swap="innerHTML">Reject</button>
+    <button class="btn" hx-post="/knowledge/{{ obj.id }}/review"
+            hx-vals='{"action":"archive"}' hx-target="#obj-status" hx-swap="innerHTML">Archive</button>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-main">
+    <div class="card">
+      <h3>Description</h3>
+      <p>{{ obj.description or 'No description.' }}</p>
+    </div>
+
+    <div class="card">
+      <h3>Relationships</h3>
+      {% for predicate, items in obj.relationships.items() %}
+      <div class="rel-group">
+        <div class="pred">{{ predicate|replace('_',' ') }}:</div>
+        {% for r in items %}
+        <div class="flex between items-center" style="padding:5px 0">
+          <a href="/knowledge/{{ r.object_id }}">{{ type_dot(r.type) }} {{ r.name or r.object_id }}</a>
+          {% if r.direction %}<span class="chip">{{ r.direction }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}<div class="empty">No relationships yet.</div>{% endfor %}
+    </div>
+
+    <div class="card">
+      <h3>Evidence <span class="faint">({{ obj.evidence_count }} quotes)</span></h3>
+      {% for e in obj.evidence[:12] %}
+      <div class="evidence-item">
+        <div class="quote">“{{ e.quote }}”</div>
+        <div class="faint" style="font-size:.76rem;margin-top:4px">
+          <a href="/artifacts/{{ e.artifact_id }}">{{ e.artifact_title }}</a>
+          {% if e.page_number %}· p.{{ e.page_number }}{% endif %}
+          {% if e.slide_number %}· slide {{ e.slide_number }}{% endif %}
+          {% if e.confidence is not none %}· {{ (e.confidence*100)|round }}%{% endif %}
+        </div>
+      </div>
+      {% else %}<div class="empty">No evidence.</div>{% endfor %}
+      {% if obj.evidence_count > 12 %}<div class="faint mt">+ {{ obj.evidence_count - 12 }} more quotes</div>{% endif %}
+    </div>
+
+    <div class="card">
+      <h3>Source Documents ({{ obj.documents|length }})</h3>
+      {% for d in obj.documents %}
+      <div class="flex between items-center" style="padding:6px 0;border-bottom:1px solid var(--border-soft)">
+        <a href="/artifacts/{{ d.id }}" class="mono">{{ d.title }}</a>
+      </div>
+      {% else %}<div class="empty">No documents.</div>{% endfor %}
+    </div>
+  </div>
+
+  <aside class="detail-main">
+    <div class="card">
+      <h3>Quality &amp; Confidence</h3>
+      <dl class="kv">
+        <dt>Quality score</dt><dd>{{ quality(obj.quality_score) }}</dd>
+        <dt>Confidence</dt><dd>{{ confidence(obj.confidence) }}</dd>
+        <dt>Merge confidence</dt><dd>{{ confidence(obj.merge_confidence) }}</dd>
+        <dt>Evidence</dt><dd class="num">{{ obj.evidence_count }}</dd>
+        <dt>Mentions</dt><dd class="num">{{ obj.mentions }}</dd>
+      </dl>
+    </div>
+    <div class="card">
+      <h3>Ownership &amp; Lifecycle</h3>
+      <dl class="kv">
+        <dt>Owner</dt><dd>{% if obj.owner %}<span class="chip">{{ obj.owner }}</span>{% else %}<span class="faint">Unassigned</span>{% endif %}</dd>
+        {% if obj.lifecycle %}
+        <dt>Review state</dt><dd>{{ badge(obj.lifecycle.review_state) }}</dd>
+        <dt>Freshness</dt><dd>{{ badge(obj.lifecycle.freshness_state) }}</dd>
+        {% endif %}
+        <dt>Created</dt><dd>{{ obj.created_at | fmt_date }}</dd>
+        <dt>Updated</dt><dd>{{ obj.updated_at | fmt_date }}</dd>
+      </dl>
+    </div>
+  </aside>
+</div>
+{% endblock %}

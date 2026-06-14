@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, confidence %}
+{% block title %}{{ artifact.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/artifacts">Artifacts</a> / {{ artifact.file_type }}</div>
+    <h1>{{ artifact.title }}</h1>
+    <div class="sub mono">{{ artifact.path }}</div>
+  </div>
+  <div class="btn-group">
+    <button class="btn" hx-post="/artifacts/{{ artifact.id }}/rescan" hx-target="#art-job" hx-swap="innerHTML">Re-scan</button>
+    <button class="btn" hx-post="/artifacts/{{ artifact.id }}/extract" hx-target="#art-job" hx-swap="innerHTML">Re-extract</button>
+    <button class="btn" hx-post="/artifacts/{{ artifact.id }}/classify" hx-target="#art-job" hx-swap="innerHTML">Reclassify</button>
+    <span id="art-job"></span>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-main">
+    <div class="card">
+      <h3>Evidence drawn from this artifact ({{ artifact.evidence|length }})</h3>
+      {% for e in artifact.evidence %}
+      <div class="evidence-item">
+        <div class="quote">“{{ e.quote }}”</div>
+        <div class="faint" style="font-size:.76rem;margin-top:4px">
+          {% if e.object_id %}<a href="/knowledge/{{ e.object_id }}">knowledge object</a> · {% endif %}
+          {% if e.page_number %}p.{{ e.page_number }} · {% endif %}
+          {% if e.confidence is not none %}{{ (e.confidence*100)|round }}% confidence{% endif %}
+        </div>
+      </div>
+      {% else %}<div class="empty">No evidence extracted from this artifact.</div>{% endfor %}
+    </div>
+
+    <div class="card">
+      <h3>Links ({{ artifact.links|length }})</h3>
+      {% for l in artifact.links %}
+      <div class="flex between items-center" style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
+        <a href="{{ l.url }}" target="_blank" rel="noopener" class="mono">{{ l.url | truncate(54,true) }}</a>
+        <span class="flex gap">{% if l.target_system %}<span class="chip">{{ l.target_system }}</span>{% endif %}{{ badge(l.link_kind) }}</span>
+      </div>
+      {% else %}<div class="empty">No links discovered.</div>{% endfor %}
+    </div>
+  </div>
+
+  <aside class="card">
+    <h3>Details</h3>
+    <dl class="kv">
+      <dt>Scan status</dt><dd>{{ badge(artifact.status) }}</dd>
+      <dt>Extraction</dt><dd>{{ badge(artifact.extraction_status) }}</dd>
+      <dt>Classification</dt><dd>{{ badge(artifact.classification_status) }}</dd>
+      <dt>File type</dt><dd>{{ artifact.file_type }}</dd>
+      <dt>Source</dt><dd>{{ artifact.source_system or '—' }}</dd>
+      <dt>Size</dt><dd>{{ artifact.size_bytes | filesize }}</dd>
+      <dt>Created</dt><dd>{{ artifact.created_at | fmt_date }}</dd>
+      <dt>Modified</dt><dd>{{ artifact.modified_at | fmt_date }}</dd>
+      <dt>SHA-256</dt><dd class="mono faint" style="word-break:break-all">{{ (artifact.sha256 or '')[:16] }}…</dd>
+    </dl>
+  </aside>
+</div>
+{% endblock %}

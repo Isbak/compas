@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge %}
+{% block title %}Observability{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Observability</h1><div class="sub">Navigate pipeline jobs, API health and link statistics.</div></div></div>
+
+<div class="grid cards mb">
+  <div class="card stat"><div class="label">API status</div>
+    <div class="value" style="font-size:1rem">{{ badge('active' if data.health.status in ('ok','healthy') else 'warning') }}</div>
+    <div class="trend faint">{{ data.health.version or data.health.status }}</div></div>
+  <div class="card stat"><div class="label">Jobs (recent)</div><div class="value num">{{ data.jobs|length }}</div></div>
+  <div class="card stat"><div class="label">Job errors</div><div class="value num {{ 'down' if data.errors }}">{{ data.errors }}</div></div>
+  <div class="card stat"><div class="label">Links</div><div class="value num">{{ data.link_stats.total or 0 }}</div></div>
+</div>
+
+<div class="card mb">
+  <h3>Pipeline Jobs</h3>
+  <table>
+    <thead><tr><th>#</th><th>Type</th><th>Status</th><th>Started</th><th>Completed</th><th>Detail</th></tr></thead>
+    <tbody>
+    {% for j in data.jobs %}
+      <tr>
+        <td class="num">{{ j.id }}</td>
+        <td><span class="chip">{{ j.job_type }}</span></td>
+        <td>{{ badge(j.status) }}</td>
+        <td class="muted">{{ j.started_at|timeago }}</td>
+        <td class="muted">{{ j.completed_at|timeago }}</td>
+        <td class="faint">{{ j.error_message or (j.result_summary|string if j.result_summary else '—') | truncate(60, true) }}</td>
+      </tr>
+    {% else %}<tr><td colspan="6" class="empty">No jobs recorded.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if data.link_stats.by_target_system %}
+<div class="card">
+  <h3>Links by target system</h3>
+  <div class="flex wrap gap">
+    {% for c in data.link_stats.by_target_system %}
+    <span class="chip">{{ c.value or c.name or c.key }} · <strong>{{ c.count }}</strong></span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

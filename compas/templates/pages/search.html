@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% from "macros.html" import type_dot, badge %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Search</h1>{% if q %}<div class="sub">{{ results.total if results else 0 }} results for “{{ q }}”.</div>{% endif %}</div></div>
+<form class="filters" hx-get="/search" hx-target="#search-page-results" hx-trigger="keyup changed delay:250ms, submit" hx-push-url="true">
+  <input class="grow" type="search" name="q" value="{{ q or '' }}" placeholder="Search everything…" autofocus>
+</form>
+<div id="search-page-results">
+  {% if results %}{% include "partials/search_results.html" %}{% endif %}
+</div>
+{% endblock %}

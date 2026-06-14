@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Graph Explorer{% endblock %}
+{% block content %}
+<div class="graph-shell" id="graph-shell" style="margin:-22px;">
+  <div class="graph-side">
+    <h3>Graph Explorer</h3>
+    <label class="muted" style="font-size:.78rem">View mode</label>
+    <select id="graph-mode" class="filters" style="width:100%">
+      {% for m in modes %}<option value="{{ m }}">{{ m|replace('all','Full graph')|title }} Map</option>{% endfor %}
+    </select>
+
+    <label class="muted mt" style="font-size:.78rem;display:block">Focus node</label>
+    <input id="graph-search" list="obj-list" placeholder="Search node…"
+           style="width:100%;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px">
+    <datalist id="obj-list">
+      {% for o in objects %}<option value="{{ o.name }}" data-id="{{ o.id }}">{{ o.type }}</option>{% endfor %}
+    </datalist>
+
+    <label class="muted mt" style="font-size:.78rem;display:block">Min confidence</label>
+    <input id="graph-conf" type="range" min="0" max="100" value="0" style="width:100%">
+
+    <div class="section-title" style="margin:18px 0 8px"><h3 style="margin:0">Path Explorer</h3></div>
+    <input id="path-from" list="obj-list" placeholder="From…" style="width:100%;margin-bottom:6px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px">
+    <input id="path-to" list="obj-list" placeholder="To…" style="width:100%;margin-bottom:6px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px">
+    <button class="btn btn-primary" style="width:100%" onclick="findPath()">Find shortest path</button>
+    <div id="path-result" class="mt"></div>
+
+    <div class="graph-legend">
+      {% for t in ['Capability','Technology','Team','Decision','Risk','Process','Platform'] %}
+      <span><span class="type-dot" id="legend-{{ t }}"></span>{{ t }}</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="graph-canvas" id="graph-canvas">
+    <div class="graph-toolbar">
+      <button class="icon-btn" title="Reset view" onclick="GV.reset()">⟲</button>
+      <button class="icon-btn" title="Re-layout" onclick="loadGraph()">✦</button>
+    </div>
+  </div>
+
+  <div class="graph-detail" id="graph-detail">
+    <div class="empty">Select a node to inspect its evidence and relationships. Double-click to expand neighbours.</div>
+  </div>
+</div>
+
+<script src="/static/js/graph.js"></script>
+<script>
+  var GV;
+  var nameToId = {};
+  {% for o in objects %}nameToId[{{ o.name|tojson }}] = {{ o.id|tojson }};{% endfor %}
+
+  function colorLegend() {
+    Object.keys(GRAPH_TYPE_COLORS).forEach(function (t) {
+      var el = document.getElementById('legend-' + t);
+      if (el) el.style.background = GRAPH_TYPE_COLORS[t];
+    });
+  }
+
+  function showDetail(n) {
+    var d = document.getElementById('graph-detail');
+    d.innerHTML = '<div class="muted">Loading…</div>';
+    compas.fetchJSON('/graph/object/' + n.id).then(function (o) {
+      var rels = '';
+      Object.keys(o.relationships).forEach(function (p) {
+        rels += '<div class="rel-group"><div class="pred">' + p.replace(/_/g,' ') + '</div>';
+        o.relationships[p].forEach(function (r) {
+          rels += '<div class="flex between" style="padding:3px 0"><a href="/knowledge/' + r.object_id + '">' + r.name + '</a><span class="faint">' + Math.round((r.confidence||0)*100) + '%</span></div>';
+        });
+        rels += '</div>';
+      });
+      var ev = (o.evidence||[]).slice(0,3).map(function (e) {
+        return '<div class="evidence-item"><div class="quote">“' + (e.quote||'') + '”</div></div>';
+      }).join('');
+      d.innerHTML = '<h3>' + o.name + '</h3><span class="chip">' + o.type + '</span>'
+        + '<p class="muted">' + (o.description||'') + '</p>'
+        + '<div class="btn-group mb"><a class="btn btn-sm" href="/knowledge/' + o.id + '">Open</a>'
+        + '<button class="btn btn-sm" onclick="expandNode(\'' + o.id + '\')">Expand neighbours</button></div>'
+        + '<h4>Evidence (' + o.evidence_count + ')</h4>' + (ev||'<div class="faint">None</div>')
+        + '<h4 class="mt">Relationships</h4>' + (rels||'<div class="faint">None</div>');
+    });
+  }
+
+  function expandNode(id) {
+    compas.fetchJSON('/graph/neighbors/' + id + '?depth=1').then(function (p) {
+      GV.setData(p, { merge: true });
+    });
+  }
+
+  function loadGraph() {
+    var mode = document.getElementById('graph-mode').value;
+    var conf = (document.getElementById('graph-conf').value / 100);
+    var focusName = document.getElementById('graph-search').value;
+    var url = '/graph/data?mode=' + mode + '&min_confidence=' + conf;
+    if (focusName && nameToId[focusName]) url += '&focus=' + nameToId[focusName] + '&depth=2';
+    compas.fetchJSON(url).then(function (p) {
+      GV.setData(p);
+      if (focusName && nameToId[focusName]) GV.focusNode(nameToId[focusName]);
+    });
+  }
+
+  function findPath() {
+    var from = nameToId[document.getElementById('path-from').value];
+    var to = nameToId[document.getElementById('path-to').value];
+    var box = document.getElementById('path-result');
+    if (!from || !to) { box.innerHTML = '<div class="faint">Pick two known nodes.</div>'; return; }
+    compas.fetchJSON('/graph/path?source=' + from + '&target=' + to).then(function (r) {
+      if (!r.found) { box.innerHTML = '<div class="faint">No path found.</div>'; return; }
+      var html = '<div class="card" style="padding:10px"><strong>' + r.length + ' hops</strong>';
+      r.steps.forEach(function (s) {
+        html += '<div style="padding:3px 0">' + s.source_name + ' <span class="pred">' + s.predicate.replace(/_/g,' ') + '</span> → ' + s.target_name + '</div>';
+      });
+      html += '</div>';
+      box.innerHTML = html;
+      // Ensure path nodes are present, then highlight.
+      compas.fetchJSON('/graph/neighbors/' + from + '?depth=' + r.length).then(function (p) {
+        GV.setData(p, { merge: true });
+        GV.setPath(r.nodes.map(function (n) { return n.id; }));
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    GV = new GraphView(document.getElementById('graph-canvas'), { onSelect: showDetail, onExpand: function (n) { expandNode(n.id); } });
+    colorLegend();
+    document.getElementById('graph-mode').addEventListener('change', loadGraph);
+    document.getElementById('graph-conf').addEventListener('change', loadGraph);
+    document.getElementById('graph-search').addEventListener('change', loadGraph);
+    {% if request.query_params.get('focus') %}
+      document.getElementById('graph-search').value = '';
+      compas.fetchJSON('/graph/neighbors/{{ request.query_params.get("focus") }}?depth=2').then(function (p) {
+        GV.setData(p); GV.focusNode('{{ request.query_params.get("focus") }}');
+      });
+    {% else %}
+      loadGraph();
+    {% endif %}
+  });
+</script>
+{% endblock %}

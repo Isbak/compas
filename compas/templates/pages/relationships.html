@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Relationships{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Relationships</h1><div class="sub">{{ page_obj.total }} subject–predicate–object triples connecting your knowledge.</div></div>
+</div>
+
+<form class="filters" hx-get="/relationships" hx-target="#rel-table"
+      hx-trigger="change, keyup changed delay:300ms, submit" hx-push-url="true">
+  <input class="grow" type="search" name="q" placeholder="Search source / target…" value="{{ active.q or '' }}">
+  <select name="predicate">
+    <option value="">All predicates</option>
+    {% for p in filters.predicates %}<option value="{{ p }}" {{ 'selected' if active.predicate==p }}>{{ p|replace('_',' ') }}</option>{% endfor %}
+  </select>
+  <select name="review_status">
+    <option value="">All review states</option>
+    {% for s in filters.review_statuses %}<option value="{{ s }}" {{ 'selected' if active.review_status==s }}>{{ s|title }}</option>{% endfor %}
+  </select>
+</form>
+
+<div id="rel-table">{% include "partials/relationships_table.html" %}</div>
+{% endblock %}

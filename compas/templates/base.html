@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %} · {{ app_name }}</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236366f1'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>C</text></svg>">
+</head>
+<body>
+<div class="busy-bar"></div>
+<div class="app">
+  {% set sections = [
+    ('Overview', [('dashboard','/','Dashboard','◆')]),
+    ('Knowledge', [
+      ('artifacts','/artifacts','Artifacts','▤'),
+      ('knowledge','/knowledge','Knowledge Objects','◉'),
+      ('relationships','/relationships','Relationships','⇄'),
+      ('domains','/domains','Domains','▦')]),
+    ('Govern', [
+      ('governance','/governance','Governance','⚖'),
+      ('observability','/observability','Observability','📈')]),
+    ('Explore', [
+      ('graph','/graph','Graph Explorer','✦'),
+      ('graphrag','/graphrag','GraphRAG','✸')]),
+    ('System', [('settings','/settings','Settings','⚙')]),
+  ] %}
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="logo">C</span>
+      <span>{{ app_name }}<small>Navigate observatory</small></span>
+    </div>
+    <nav class="nav">
+      {% for title, items in sections %}
+        <div class="nav-section">{{ title }}</div>
+        {% for key, href, label, ico in items %}
+          <a href="{{ href }}" class="{{ 'active' if nav == key }}">
+            <span class="ico">{{ ico }}</span> {{ label }}
+          </a>
+        {% endfor %}
+      {% endfor %}
+    </nav>
+    <div class="sidebar-foot">
+      Local-first · read-only catalog<br>
+      <a href="https://github.com/isbak/navigate" target="_blank" rel="noopener">isbak/navigate ↗</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')" title="Menu">☰</button>
+      <div class="search-wrap">
+        <span class="s-ico">⌕</span>
+        <input type="search" name="q" placeholder="Search artifacts, knowledge, relationships…"
+               autocomplete="off"
+               hx-get="/search" hx-target="#global-search-results"
+               hx-trigger="keyup changed delay:250ms, focus"
+               aria-label="Global search">
+        <div class="search-results-pop" id="global-search-results"></div>
+      </div>
+      <div class="actions">
+        <button class="icon-btn" title="Notifications"
+                hx-get="/notifications" hx-target="#notif-pop" hx-swap="innerHTML"
+                onclick="document.getElementById('notif-pop').classList.toggle('hidden')">
+          🔔{% if notifications %}<span class="badge-dot">{{ notifications|length }}</span>{% endif %}
+        </button>
+        <button class="icon-btn" title="Knowledge Assistant"
+                onclick="document.getElementById('assistant').classList.add('open')">✸</button>
+        <button class="icon-btn" title="Toggle theme" onclick="compasToggleTheme()">◐</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <div id="notif-pop" class="search-results-pop hidden" style="position:fixed;top:60px;right:22px;width:340px;"></div>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+{# ----- Knowledge Assistant drawer ----- #}
+<div class="drawer" id="assistant">
+  <div class="drawer-head">
+    <strong>✸ Knowledge Assistant</strong>
+    <button class="icon-btn" onclick="document.getElementById('assistant').classList.remove('open')">✕</button>
+  </div>
+  <div class="drawer-body" id="assistant-body">
+    <p class="muted">Ask a grounded question about your organisation's knowledge graph. Answers cite evidence, knowledge objects and the SPARQL used.</p>
+    <div class="wrap flex gap" style="margin-top:10px">
+      {% for s in ['What supports Release Governance?','What capabilities depend on Salesforce?','What risks affect Release Management?'] %}
+      <span class="chip suggest-chip" onclick="compasAsk(this.textContent)">{{ s }}</span>
+      {% endfor %}
+    </div>
+    <div id="assistant-answer"></div>
+  </div>
+  <div class="drawer-foot">
+    <form class="assistant-input" onsubmit="event.preventDefault(); compasAsk(this.q.value)">
+      <input name="q" placeholder="Ask the knowledge graph…" autocomplete="off">
+      <button class="btn btn-primary" type="submit">Ask</button>
+    </form>
+  </div>
+</div>
+
+<script src="/static/js/compas.js"></script>
+{% block scripts %}{% endblock %}
+<script>
+  function compasToggleTheme() {
+    var el = document.documentElement;
+    var next = el.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    el.setAttribute('data-theme', next);
+    try { localStorage.setItem('compas-theme', next); } catch (e) {}
+  }
+  (function () {
+    try { var t = localStorage.getItem('compas-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  })();
+  function compasAsk(q) {
+    document.getElementById('assistant').classList.add('open');
+    var body = document.getElementById('assistant-answer');
+    body.innerHTML = '<div class="answer-card muted">Thinking…</div>';
+    compas.postForm('/graphrag/ask', body, { question: q });
+  }
+  document.addEventListener('click', function (e) {
+    var pop = document.getElementById('global-search-results');
+    if (pop && !e.target.closest('.search-wrap')) pop.innerHTML = '';
+  });
+</script>
+</body>
+</html>

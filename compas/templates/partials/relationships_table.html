@@ -1,0 +1,31 @@
+{% from "macros.html" import badge, type_dot, confidence, pagination %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Source</th><th>Predicate</th><th>Target</th><th>Confidence</th>
+        <th>Evidence</th><th>Review</th><th></th></tr></thead>
+    <tbody>
+    {% for r in page_obj.items %}
+      <tr>
+        <td><a href="/knowledge/{{ r.source_id }}">{{ type_dot(r.source_type) }} {{ r.source }}</a></td>
+        <td><span class="pred">{{ r.predicate_label }}</span></td>
+        <td><a href="/knowledge/{{ r.target_id }}">{{ type_dot(r.target_type) }} {{ r.target }}</a></td>
+        <td>{{ confidence(r.confidence) }}</td>
+        <td class="faint" title="{{ r.evidence }}">{{ (r.evidence or '') | truncate(40, true) }}</td>
+        <td><span id="rel-{{ r.id }}">{{ badge(r.review_status) }}</span></td>
+        <td>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-success" hx-post="/relationships/{{ r.id }}/review"
+                    hx-vals='{"action":"approve"}' hx-target="#rel-{{ r.id }}" hx-swap="innerHTML">✓</button>
+            <button class="btn btn-sm btn-danger" hx-post="/relationships/{{ r.id }}/review"
+                    hx-vals='{"action":"reject"}' hx-target="#rel-{{ r.id }}" hx-swap="innerHTML">✕</button>
+            <a class="btn btn-sm" href="/graph?focus={{ r.source_id }}" title="Inspect">⧉</a>
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="empty">No relationships match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {{ pagination(page_obj, '#rel-table', '/relationships', active) }}
+</div>

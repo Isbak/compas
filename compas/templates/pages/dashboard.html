@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "macros.html" import stat_card, badge, type_dot, quality %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Knowledge Observatory</h1>
+    <div class="sub">A single view of your organisation's collective memory, served by the Navigate API.</div>
+  </div>
+  <a class="btn btn-primary" href="/graphrag">✸ Ask the graph</a>
+</div>
+
+<div class="grid cards">
+  {{ stat_card('Total Artifacts', stats.total_artifacts, '▤') }}
+  {{ stat_card('Knowledge Objects', stats.knowledge_objects, '◉') }}
+  {{ stat_card('Relationships', stats.relationships, '⇄') }}
+  {{ stat_card('Evidence', stats.evidence_count, '❝') }}
+  {{ stat_card('Approved', stats.approved_objects, '✓', stats.approved_pct ~ '% of objects', 'up') }}
+  {{ stat_card('Pending Reviews', stats.pending_reviews, '◷', 'awaiting governance') }}
+  {{ stat_card('Stale Knowledge', stats.stale_knowledge, '⌛', 'needs refresh', 'down' if stats.stale_knowledge else '') }}
+  {{ stat_card('Quality Score', stats.quality_score, '★', 'avg across objects', 'up' if stats.quality_score >= 60 else 'down') }}
+</div>
+
+<div class="grid mt" style="grid-template-columns: 1fr 1fr;">
+  <div class="card pad-lg">
+    <div class="flex between items-center mb"><h2>Review Queue</h2><a href="/governance" class="faint">Governance →</a></div>
+    {% for o in review_queue %}
+    <div class="flex between items-center" style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
+      <a href="/knowledge/{{ o.id }}">{{ type_dot(o.type) }} {{ o.name or o.id }}</a>
+      {{ badge(o.review_status) }}
+    </div>
+    {% else %}<div class="empty">Nothing awaiting review ✦</div>{% endfor %}
+  </div>
+
+  <div class="card pad-lg">
+    <h2>Notifications</h2>
+    {% for n in notifications %}
+    <div class="alert-row">
+      <span class="sev sev-{{ n.severity }}"></span>
+      <div>
+        <div>{{ n.message }}</div>
+        <div class="faint" style="font-size:.74rem">{{ (n.kind or '')|replace('_',' ')|title }} · {{ n.created_at|timeago }}</div>
+      </div>
+    </div>
+    {% else %}<div class="empty">All clear ✦</div>{% endfor %}
+  </div>
+</div>
+
+{% if domains %}
+<div class="card pad-lg mt">
+  <div class="flex between items-center mb"><h2>Domain Overview</h2><a href="/domains" class="faint">View all →</a></div>
+  <table>
+    <thead><tr><th>Domain</th><th>Objects</th><th>Quality</th><th>Freshness</th></tr></thead>
+    <tbody>
+    {% for d in domains[:6] %}
+      <tr>
+        <td><a href="/domains/{{ d.domain }}">{{ d.domain }}</a></td>
+        <td class="num">{{ d.objects }}</td>
+        <td>{{ quality(d.quality) }}</td>
+        <td class="num">{{ (d.freshness ~ '%') if d.freshness is not none else '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

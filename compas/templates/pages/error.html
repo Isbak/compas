@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Navigate unavailable{% endblock %}
+{% block content %}
+<div class="empty" style="padding:70px 20px">
+  <h1 style="font-size:2.2rem;margin:0">Navigate API unavailable</h1>
+  <p class="muted">Compas is a client of the Navigate REST API and couldn't reach it.</p>
+  <p class="mono faint">{{ endpoint }}</p>
+  <p class="muted" style="max-width:520px;margin:14px auto">{{ error }}</p>
+  <div class="btn-group" style="justify-content:center">
+    <a class="btn btn-primary" href="javascript:location.reload()">Retry</a>
+    <a class="btn" href="/settings">Check settings</a>
+  </div>
+  <p class="faint mt">Start it with <code>catalog api</code> in your Navigate checkout,
+     then set <code>COMPAS_NAVIGATE_API_URL</code>.</p>
+</div>
+{% endblock %}

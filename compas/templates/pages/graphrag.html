@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}GraphRAG{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>✸ GraphRAG Assistant</h1><div class="sub">Graph-first, evidence-grounded answers. No hallucination — every claim cites the catalog.</div></div></div>
+
+<div class="card pad-lg" style="max-width:880px">
+  <form hx-post="/graphrag/ask" hx-target="#rag-answer" hx-trigger="submit">
+    <div class="assistant-input">
+      <input name="question" placeholder="e.g. What supports Release Governance?" autocomplete="off" autofocus>
+      <button class="btn btn-primary" type="submit">Ask</button>
+    </div>
+  </form>
+  <div class="flex wrap gap mt">
+    {% for s in suggestions %}
+    <span class="chip suggest-chip"
+          hx-post="/graphrag/ask" hx-target="#rag-answer" hx-vals='{"question": {{ s|tojson }} }'>{{ s }}</span>
+    {% endfor %}
+  </div>
+</div>
+
+<div id="rag-answer" style="max-width:880px"></div>
+{% endblock %}

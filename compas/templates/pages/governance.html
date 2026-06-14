@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, type_dot, quality, confidence %}
+{% block title %}Governance{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Governance Center</h1><div class="sub">Review, approve and keep your knowledge healthy.</div></div></div>
+
+{% macro hpct(v) %}{{ (v ~ '%') if v is not none else '—' }}{% endmacro %}
+<div class="grid cards mb">
+  {% set h = health %}
+  <div class="card stat"><div class="label">Quality Score</div><div class="value num">{{ h.quality_score if h.quality_score is not none else '—' }}</div></div>
+  <div class="card stat"><div class="label">Freshness</div><div class="value num">{{ hpct(h.freshness) }}</div></div>
+  <div class="card stat"><div class="label">Review Coverage</div><div class="value num">{{ hpct(h.review_coverage) }}</div></div>
+  <div class="card stat"><div class="label">Evidence Coverage</div><div class="value num">{{ hpct(h.evidence_coverage) }}</div></div>
+  <div class="card stat"><div class="label">Relationship Coverage</div><div class="value num">{{ hpct(h.relationship_coverage) }}</div></div>
+</div>
+
+<div class="grid" style="grid-template-columns:1fr 1fr;">
+  <div class="card">
+    <h3>Review Queue <span class="faint">({{ data.review_queue|length }})</span></h3>
+    {% for o in data.review_queue[:10] %}
+    <div class="flex between items-center" style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
+      <a href="/knowledge/{{ o.id }}">{{ type_dot(o.type) }} {{ o.name }}</a>
+      <span class="btn-group">
+        <span id="gq-{{ o.id }}">{{ confidence(o.confidence) }}</span>
+        <button class="btn btn-sm btn-success" hx-post="/knowledge/{{ o.id }}/review"
+                hx-vals='{"action":"approve"}' hx-target="#gq-{{ o.id }}" hx-swap="innerHTML">✓</button>
+      </span>
+    </div>
+    {% else %}<div class="empty">Queue empty ✦</div>{% endfor %}
+  </div>
+
+  <div class="card">
+    <h3>Pending Relationships <span class="faint">({{ data.pending_relationships|length }})</span></h3>
+    {% for r in data.pending_relationships[:10] %}
+    <div class="flex between items-center" style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
+      <span>{{ r.source }} <span class="pred">{{ r.predicate_label }}</span> {{ r.target }}</span>
+      <span class="btn-group">
+        <button class="btn btn-sm btn-success" hx-post="/relationships/{{ r.id }}/review"
+                hx-vals='{"action":"approve"}' hx-target="closest div" hx-swap="outerHTML">✓</button>
+      </span>
+    </div>
+    {% else %}<div class="empty">No pending relationships.</div>{% endfor %}
+  </div>
+</div>
+
+<div class="section-title"><h2>Alerts</h2></div>
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));">
+  {% set groups = [('Quality Alerts', data.quality_alerts), ('Drift Alerts', data.drift_alerts),
+                   ('Orphaned Objects', data.orphaned), ('Duplicate Candidates', data.duplicate_candidates)] %}
+  {% for title, items in groups %}
+  <div class="card">
+    <h3>{{ title }} <span class="faint">({{ items|length }})</span></h3>
+    {% for a in items %}
+    <div class="alert-row">
+      <span class="sev sev-{{ a.severity }}"></span>
+      <div><div>{{ a.message }}</div>
+        {% if a.object_id %}<a class="faint" href="/knowledge/{{ a.object_id }}" style="font-size:.76rem">{{ a.object_name }} →</a>{% endif %}</div>
+    </div>
+    {% else %}<div class="empty">None</div>{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="section-title"><h2>Stale Objects <span class="faint">({{ data.stale_objects|length }})</span></h2></div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Review</th><th>Quality</th><th></th></tr></thead>
+    <tbody>
+    {% for o in data.stale_objects[:15] %}
+      <tr>
+        <td><a href="/knowledge/{{ o.id }}">{{ o.name }}</a></td>
+        <td>{{ type_dot(o.type) }} {{ o.type }}</td>
+        <td>{{ badge(o.review_status) }}</td>
+        <td>{{ quality(o.quality_score) }}</td>
+        <td><a class="btn btn-sm" href="/knowledge/{{ o.id }}">Review</a></td>
+      </tr>
+    {% else %}<tr><td colspan="5" class="empty">No stale objects ✦</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

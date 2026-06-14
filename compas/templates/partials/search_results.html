@@ -1,0 +1,35 @@
+{% from "macros.html" import type_dot, badge %}
+{% if not q %}
+{% elif results and results.total %}
+  {% if results.knowledge_objects %}
+  <div style="padding:8px 12px 4px" class="faint">Knowledge Objects</div>
+  {% for o in results.knowledge_objects[:6] %}
+  <a href="/knowledge/{{ o.id }}" class="flex between items-center" style="padding:8px 12px;border-bottom:1px solid var(--border-soft)">
+    <span>{{ type_dot(o.type) }} {{ o.name }}</span><span class="chip">{{ o.type }}</span>
+  </a>
+  {% endfor %}
+  {% endif %}
+  {% if results.artifacts %}
+  <div style="padding:8px 12px 4px" class="faint">Artifacts</div>
+  {% for a in results.artifacts[:5] %}
+  <a href="/artifacts/{{ a.id }}" class="flex between items-center" style="padding:8px 12px;border-bottom:1px solid var(--border-soft)">
+    <span>▤ {{ a.title }}</span><span class="chip">{{ a.file_type }}</span>
+  </a>
+  {% endfor %}
+  {% endif %}
+  {% if results.relationships %}
+  <div style="padding:8px 12px 4px" class="faint">Relationships</div>
+  {% for r in results.relationships[:5] %}
+  <div class="flex between items-center" style="padding:8px 12px;border-bottom:1px solid var(--border-soft)">
+    <span>{{ r.source }} <span class="pred">{{ r.predicate|replace('_',' ') }}</span> {{ r.target }}</span>
+    {{ badge(r.review_status) }}
+  </div>
+  {% endfor %}
+  {% endif %}
+  {% if results.domains %}
+  <div style="padding:8px 12px 4px" class="faint">Domains</div>
+  {% for d in results.domains %}<a href="/domains/{{ d.domain }}" style="display:block;padding:8px 12px">▦ {{ d.domain }}</a>{% endfor %}
+  {% endif %}
+{% else %}
+  <div style="padding:14px" class="faint">No results for “{{ q }}”.</div>
+{% endif %}
