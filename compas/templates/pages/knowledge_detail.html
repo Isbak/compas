@@ -37,7 +37,7 @@
         {% for r in items %}
         <div class="flex between items-center" style="padding:5px 0">
           <a href="/knowledge/{{ r.object_id }}">{{ type_dot(r.type) }} {{ r.name or r.object_id }}</a>
-          {% if r.direction %}<span class="chip">{{ r.direction }}</span>{% endif %}
+          <span class="flex gap items-center">{{ confidence(r.confidence) }}{{ badge(r.review_status) }}</span>
         </div>
         {% endfor %}
       </div>
