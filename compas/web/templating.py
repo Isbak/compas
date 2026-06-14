@@ -28,7 +28,8 @@ def _timeago(value: str | None) -> str:
         dt = datetime.fromisoformat(value)
     except (ValueError, TypeError):
         return str(value)
-    delta = datetime.now() - dt
+    now = datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now()
+    delta = now - dt
     secs = delta.total_seconds()
     if secs < 0:
         return _fmt_date(value)
