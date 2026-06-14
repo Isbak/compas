@@ -164,7 +164,7 @@ def artifact_filter_options(client: NavigateClient) -> dict:
     return {
         "file_types": ["docx", "pptx", "xlsx", "pdf", "md", "txt"],
         "statuses": ["RAW", "CHANGED", "UNCHANGED", "DELETED", "DUPLICATE"],
-        "classification_statuses": ["NEW", "REVIEWED", "APPROVED"],
+        "classification_statuses": ["CLASSIFIED", "UNCLASSIFIED"],
     }
 
 
@@ -201,18 +201,26 @@ def get_knowledge(client: NavigateClient, object_id: str) -> dict | None:
         return None
     evidence = client.knowledge_evidence(object_id).get("items", [])
     mentions = client.knowledge_mentions(object_id).get("items", [])
-    try:
-        neighbors = client.graph_neighbors(object_id).get("neighbors", {})
-    except Exception:
-        neighbors = {}
 
+    # Use the complete relationships endpoint (incoming + outgoing, with
+    # confidence + review status) rather than the graph "neighbors" projection,
+    # which Navigate filters to a subset of predicates.
+    index = _objects_index(client)
+    rels_env = _safe(lambda: client.knowledge_relationships(object_id)) or {"items": []}
     relationships: dict[str, list] = {}
-    for predicate, nodes in neighbors.items():
-        relationships[predicate] = [{
-            "object_id": n.get("id"), "name": n.get("label"),
-            "type": n.get("type"), "confidence": None,
-            "review_status": None, "direction": n.get("direction"),
-        } for n in nodes]
+    for r in rels_env.get("items", []):
+        src, tgt = r.get("source_object"), r.get("target_object")
+        outgoing = src == object_id
+        other = tgt if outgoing else src
+        key = r.get("predicate") if outgoing else f"{r.get('predicate')} (incoming)"
+        relationships.setdefault(key, []).append({
+            "object_id": other,
+            "name": index.get(other, {}).get("name", other),
+            "type": index.get(other, {}).get("type"),
+            "confidence": r.get("confidence"),
+            "review_status": r.get("review_status"),
+            "direction": "out" if outgoing else "in",
+        })
 
     doc_ids = {e.get("artifact_id") for e in evidence} | \
         {m.get("artifact_id") for m in mentions}
@@ -516,9 +524,12 @@ def graph_payload(client: NavigateClient, *, mode: str = "all", focus=None,
         keep_edges = [e for e in keep_edges
                       if e.get("source") in used_ids and e.get("target") in used_ids]
 
+    index = _objects_index(client)
     out_nodes = [{"data": {
-        "id": n.get("id"), "label": n.get("label"), "type": n.get("type"),
-        "status": n.get("status"), "confidence": n.get("confidence"),
+        "id": n.get("id"),
+        "label": index.get(n.get("id"), {}).get("name") or n.get("label"),
+        "type": n.get("type"), "status": n.get("status"),
+        "confidence": n.get("confidence"),
         "evidence_count": n.get("mentions") or n.get("documents") or 0,
         "focus": False,
     }} for n in nodes if n.get("id") in used_ids]
@@ -595,9 +606,9 @@ def shortest_path(client: NavigateClient, source: str, target: str) -> dict:
 
 
 def list_object_names(client: NavigateClient) -> list[dict]:
-    nodes = _safe(client.graph_export) or {"nodes": []}
-    return [{"id": n.get("id"), "name": n.get("label"), "type": n.get("type")}
-            for n in nodes.get("nodes", [])]
+    return [{"id": oid, "name": v["name"], "type": v["type"]}
+            for oid, v in sorted(_objects_index(client).items(),
+                                 key=lambda kv: (kv[1]["name"] or "").lower())]
 
 
 # --------------------------------------------------------------------------- #
@@ -643,14 +654,21 @@ def _safe(fn):
         return None
 
 
-_NAME_CACHE: dict[int, dict] = {}
+def _objects_index(client: NavigateClient) -> dict[str, dict]:
+    """Map object id → {name, type} using the proper-case knowledge list.
+
+    (Navigate lowercases ``label`` in graph payloads, so the knowledge-object
+    list is the better source for display names.)
+    """
+    env = _safe(lambda: client.list_knowledge(
+        limit=get_settings().max_page_size, offset=0)) or {"items": []}
+    return {o["id"]: {"name": o.get("name"), "type": o.get("object_type")}
+            for o in env.get("items", [])}
 
 
 def _name_map(client: NavigateClient) -> dict[str, str]:
-    nodes = _safe(client.graph_export) or {"nodes": []}
-    return {n.get("id"): n.get("label") for n in nodes.get("nodes", [])}
+    return {oid: v["name"] for oid, v in _objects_index(client).items()}
 
 
 def _type_map(client: NavigateClient) -> dict[str, str]:
-    nodes = _safe(client.graph_export) or {"nodes": []}
-    return {n.get("id"): n.get("type") for n in nodes.get("nodes", [])}
+    return {oid: v["type"] for oid, v in _objects_index(client).items()}
