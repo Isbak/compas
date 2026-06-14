@@ -34,3 +34,4 @@ include = ["compas*"]
 testpaths = ["tests"]
 addopts = "-q"
 asyncio_mode = "auto"
+pythonpath = ["."]
