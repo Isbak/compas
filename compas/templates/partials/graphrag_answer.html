@@ -1,0 +1,50 @@
+{% from "macros.html" import confidence, type_dot %}
+<div class="answer-card">
+  <div class="flex between items-center mb">
+    <strong>{{ question }}</strong>
+    <span class="flex gap items-center">{{ confidence(answer.confidence) }}
+      <span class="chip">{{ answer.source }}</span></span>
+  </div>
+  <div class="ans">{{ answer.answer | replace('**','') }}</div>
+
+  {% if answer.note %}<div class="faint mt">⚠ {{ answer.note }}</div>{% endif %}
+
+  {% if answer.knowledge_objects_used %}
+  <h4 class="mt">Knowledge Objects Used</h4>
+  <div class="flex wrap gap">
+    {% for o in answer.knowledge_objects_used %}
+    <a class="chip" href="/knowledge/{{ o.id }}">{{ type_dot(o.type) }} {{ o.name }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if answer.evidence %}
+  <h4 class="mt">Evidence</h4>
+  {% for e in answer.evidence %}
+  <div class="evidence-item">
+    <div class="quote">“{{ e.quote }}”</div>
+    <div class="faint" style="font-size:.76rem;margin-top:3px">
+      <a href="/artifacts/{{ e.artifact_id }}">{{ e.artifact_title }}</a>
+      {% if e.page_number %}· p.{{ e.page_number }}{% endif %} · {{ (e.confidence*100)|round }}%
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if answer.sparql_queries %}
+  <h4 class="mt">SPARQL Queries Used</h4>
+  {% for s in answer.sparql_queries %}
+  <details>
+    <summary class="muted">{{ s.label }}</summary>
+    <pre class="mono" style="background:var(--bg);padding:10px;border-radius:6px;overflow-x:auto">{{ s.query }}</pre>
+  </details>
+  {% endfor %}
+  {% endif %}
+
+  {% if answer.focus_id %}
+  <div class="btn-group mt">
+    <a class="btn btn-sm" href="/graph?focus={{ answer.focus_id }}">✦ Show graph context</a>
+    <a class="btn btn-sm" href="/knowledge/{{ answer.focus_id }}">Show relationships &amp; evidence</a>
+  </div>
+  {% endif %}
+</div>

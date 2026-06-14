@@ -1,0 +1,2 @@
+{% from "macros.html" import badge %}
+{{ badge(obj.lifecycle.review_state if obj.lifecycle else obj.status) }}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "macros.html" import quality %}
+{% block title %}Domains{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Domains</h1><div class="sub">Business and technology areas across the knowledge base.</div></div></div>
+<div class="grid cards">
+  {% for d in domains %}
+  <a class="card" href="/domains/{{ d.domain }}" style="text-decoration:none;color:inherit">
+    <h3>{{ d.domain }}</h3>
+    <div class="flex between mt"><span class="muted">Objects</span><strong class="num">{{ d.objects }}</strong></div>
+    <div class="flex between"><span class="muted">Documents</span><strong class="num">{{ d.documents }}</strong></div>
+    <div class="flex between items-center mt"><span class="muted">Quality</span>{{ quality(d.quality) }}</div>
+    <div class="flex between items-center"><span class="muted">Freshness</span>
+      <span class="num">{{ (d.freshness ~ '%') if d.freshness is not none else '—' }}</span></div>
+  </a>
+  {% else %}<div class="empty">No domains found.</div>{% endfor %}
+</div>
+{% endblock %}

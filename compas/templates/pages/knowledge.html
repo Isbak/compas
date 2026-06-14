@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Objects{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Knowledge Objects</h1><div class="sub">{{ page_obj.total }} consolidated entities across capabilities, teams, technologies, decisions and risks.</div></div>
+</div>
+
+<form class="filters" hx-get="/knowledge" hx-target="#knowledge-table"
+      hx-trigger="change, keyup changed delay:300ms, submit" hx-push-url="true">
+  <input class="grow" type="search" name="q" placeholder="Search by name…" value="{{ active.q or '' }}">
+  <select name="object_type">
+    <option value="">All types</option>
+    {% for t in filters.types %}<option value="{{ t }}" {{ 'selected' if active.object_type==t }}>{{ t }}</option>{% endfor %}
+  </select>
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for s in filters.statuses %}<option value="{{ s }}" {{ 'selected' if active.status==s }}>{{ s }}</option>{% endfor %}
+  </select>
+  <select name="review_state">
+    <option value="">All review states</option>
+    {% for r in filters.review_states %}<option value="{{ r }}" {{ 'selected' if active.review_state==r }}>{{ r|replace('_',' ')|title }}</option>{% endfor %}
+  </select>
+  <select name="domain">
+    <option value="">All domains</option>
+    {% for d in filters.domains %}<option value="{{ d }}" {{ 'selected' if active.domain==d }}>{{ d }}</option>{% endfor %}
+  </select>
+  <select name="sort">
+    {% for s in ['quality','evidence','relationships','confidence','name'] %}
+      <option value="{{ s }}" {{ 'selected' if active.sort==s }}>Sort: {{ s|title }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<div id="knowledge-table">
+  {% include "partials/knowledge_table.html" %}
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+<div style="padding:8px 0">
+{% for n in notifications %}
+  <div class="alert-row" style="padding:9px 14px">
+    <span class="sev sev-{{ n.severity }}"></span>
+    <div>
+      <div>{{ n.message }}</div>
+      <div class="faint" style="font-size:.72rem">
+        {{ n.kind|replace('_',' ')|title }}
+        {% if n.object_id %}· <a href="/knowledge/{{ n.object_id }}">{{ n.object_name }}</a>{% endif %}
+        · {{ n.created_at|timeago }}
+      </div>
+    </div>
+  </div>
+{% else %}
+  <div class="empty">No notifications ✦</div>
+{% endfor %}
+</div>

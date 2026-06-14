@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Artifacts{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Artifacts</h1><div class="sub">{{ page_obj.total }} indexed documents · sources are never moved or modified.</div></div>
+</div>
+
+<form class="filters" hx-get="/artifacts" hx-target="#artifacts-table"
+      hx-trigger="change, keyup changed delay:300ms, submit" hx-push-url="true">
+  <input class="grow" type="search" name="q" placeholder="Search title or path…" value="{{ active.q or '' }}">
+  <select name="file_type">
+    <option value="">All file types</option>
+    {% for f in filters.file_types %}<option value="{{ f }}" {{ 'selected' if active.file_type==f }}>{{ f }}</option>{% endfor %}
+  </select>
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for s in filters.statuses %}<option value="{{ s }}" {{ 'selected' if active.status==s }}>{{ s }}</option>{% endfor %}
+  </select>
+  <select name="domain">
+    <option value="">All domains</option>
+    {% for d in filters.domains %}<option value="{{ d }}" {{ 'selected' if active.domain==d }}>{{ d }}</option>{% endfor %}
+  </select>
+</form>
+
+<div id="artifacts-table">
+  {% include "partials/artifacts_table.html" %}
+</div>
+{% endblock %}

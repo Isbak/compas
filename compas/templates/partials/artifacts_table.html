@@ -1,0 +1,27 @@
+{% from "macros.html" import badge, pagination %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Title</th><th>Type</th><th>Path</th><th>Modified</th><th>Status</th>
+          <th class="num">Links</th><th class="num">Objects</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for a in page_obj.items %}
+      <tr>
+        <td><div class="title-cell"><a href="/artifacts/{{ a.id }}"><strong>{{ a.title }}</strong></a></div>
+            {% if a.document_type %}<span class="faint" style="font-size:.74rem">{{ a.document_type }}</span>{% endif %}</td>
+        <td><span class="chip">{{ a.file_type }}</span></td>
+        <td class="mono faint" title="{{ a.path }}">{{ a.path | truncate(42, true) }}</td>
+        <td class="muted">{{ a.modified_at | timeago }}</td>
+        <td>{{ badge(a.status) }}</td>
+        <td class="num">{{ a.links }}</td>
+        <td class="num">{{ a.knowledge_objects }}</td>
+        <td><a class="btn btn-sm" href="/artifacts/{{ a.id }}">View</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="empty">No artifacts match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {{ pagination(page_obj, '#artifacts-table', '/artifacts', active) }}
+</div>

@@ -1,0 +1,63 @@
+{# Reusable UI macros #}
+
+{% macro badge(value) %}
+  {%- if value -%}
+  <span class="badge badge-{{ value|lower }}">{{ value|replace('_',' ')|title }}</span>
+  {%- else -%}<span class="faint">—</span>{%- endif -%}
+{% endmacro %}
+
+{% macro type_dot(type) %}
+  {% set colors = {'Capability':'#6366f1','Technology':'#0ea5e9','Platform':'#06b6d4',
+    'Team':'#22c55e','Decision':'#f59e0b','Risk':'#ef4444','Process':'#a855f7',
+    'Initiative':'#ec4899','Product':'#14b8a6','Concept':'#94a3b8'} %}
+  <span class="type-dot" style="background:{{ colors.get(type, '#94a3b8') }}"></span>
+{% endmacro %}
+
+{% macro confidence(value, klass='') %}
+  {% if value is not none %}
+  <div class="flex items-center gap" title="{{ (value*100)|round }}%">
+    <div class="bar {{ klass }}" style="width:70px"><i style="width:{{ (value*100)|round }}%"></i></div>
+    <span class="num faint">{{ (value*100)|round }}%</span>
+  </div>
+  {% else %}<span class="faint">—</span>{% endif %}
+{% endmacro %}
+
+{% macro quality(value) %}
+  {% if value is not none %}
+  <div class="flex items-center gap" title="Quality {{ value|round(1) }}">
+    <div class="bar q" style="width:70px"><i style="width:{{ value|round }}%"></i></div>
+    <span class="num">{{ value|round(1) }}</span>
+  </div>
+  {% else %}<span class="faint">—</span>{% endif %}
+{% endmacro %}
+
+{% macro pagination(page_obj, target, base_url, params={}) %}
+  {% set qs = [] %}
+  {% for k, v in params.items() if v %}{% set _ = qs.append(k ~ '=' ~ v) %}{% endfor %}
+  {% set query = (qs|join('&')) %}
+  <div class="pagination">
+    <span class="muted">
+      Showing {{ ((page_obj.page-1)*page_obj.page_size)+1 if page_obj.total else 0 }}–{{
+        [page_obj.page*page_obj.page_size, page_obj.total]|min }} of
+      <strong>{{ page_obj.total }}</strong>
+    </span>
+    <div class="pages">
+      <a class="{{ 'disabled' if not page_obj.has_prev }}"
+         hx-get="{{ base_url }}?page={{ page_obj.page-1 }}{% if query %}&{{ query }}{% endif %}"
+         hx-target="{{ target }}" hx-push-url="true">‹ Prev</a>
+      <span class="pg">Page {{ page_obj.page }} / {{ page_obj.pages }}</span>
+      <a class="{{ 'disabled' if not page_obj.has_next }}"
+         hx-get="{{ base_url }}?page={{ page_obj.page+1 }}{% if query %}&{{ query }}{% endif %}"
+         hx-target="{{ target }}" hx-push-url="true">Next ›</a>
+    </div>
+  </div>
+{% endmacro %}
+
+{% macro stat_card(label, value, ico='', sub='', sub_class='') %}
+  <div class="card stat">
+    {% if ico %}<span class="ico">{{ ico }}</span>{% endif %}
+    <div class="label">{{ label }}</div>
+    <div class="value num">{{ value }}</div>
+    {% if sub %}<div class="trend {{ sub_class }}">{{ sub }}</div>{% endif %}
+  </div>
+{% endmacro %}

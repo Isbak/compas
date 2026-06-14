@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "macros.html" import stat_card, badge, type_dot, quality %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Knowledge Observatory</h1>
+    <div class="sub">A single view of your organisation's collective memory.</div>
+  </div>
+  <a class="btn btn-primary" href="/graphrag">✸ Ask the graph</a>
+</div>
+
+<div class="grid cards">
+  {{ stat_card('Total Artifacts', stats.total_artifacts, '▤') }}
+  {{ stat_card('Knowledge Objects', stats.knowledge_objects, '◉') }}
+  {{ stat_card('Relationships', stats.relationships, '⇄') }}
+  {{ stat_card('Evidence', stats.evidence_count, '❝') }}
+  {{ stat_card('Approved', stats.approved_objects, '✓', stats.approved_pct ~ '% of objects', 'up') }}
+  {{ stat_card('Pending Reviews', stats.pending_reviews, '◷', 'awaiting governance', '') }}
+  {{ stat_card('Stale Knowledge', stats.stale_knowledge, '⌛', 'needs refresh', 'down' if stats.stale_knowledge else '') }}
+  {{ stat_card('Quality Score', stats.quality_score, '★', 'avg across objects', 'up' if stats.quality_score >= 60 else 'down') }}
+</div>
+
+<div class="grid mt" style="grid-template-columns: 2fr 1fr;">
+  <div class="card pad-lg">
+    <div class="flex between items-center mb">
+      <h2>Knowledge Growth</h2><span class="chip">cumulative objects</span>
+    </div>
+    {% if growth %}
+    <div class="spark">
+      {% set maxv = (growth | map(attribute='total') | max) or 1 %}
+      {% for g in growth %}
+        <i style="height:{{ (g.total / maxv * 100)|round }}%" title="{{ g.period }}: {{ g.total }} objects (+{{ g.added }})"></i>
+      {% endfor %}
+    </div>
+    <div class="flex between faint mt"><span>{{ growth[0].period }}</span><span>{{ growth[-1].period }} · {{ growth[-1].total }} total</span></div>
+    {% else %}<div class="empty">No growth data yet.</div>{% endif %}
+  </div>
+
+  <div class="card pad-lg">
+    <h2>Notifications</h2>
+    {% for n in notifications %}
+    <div class="alert-row">
+      <span class="sev sev-{{ n.severity }}"></span>
+      <div>
+        <div>{{ n.message }}</div>
+        <div class="faint" style="font-size:.74rem">{{ n.kind|replace('_',' ')|title }} · {{ n.created_at|timeago }}</div>
+      </div>
+    </div>
+    {% else %}<div class="empty">All clear ✦</div>{% endfor %}
+  </div>
+</div>
+
+<div class="grid mt" style="grid-template-columns: 1fr 1fr;">
+  <div class="card pad-lg">
+    <div class="flex between items-center mb"><h2>Domain Overview</h2><a href="/domains" class="faint">View all →</a></div>
+    <table>
+      <thead><tr><th>Domain</th><th>Objects</th><th>Quality</th><th>Freshness</th></tr></thead>
+      <tbody>
+      {% for d in domains[:6] %}
+        <tr>
+          <td><a href="/domains/{{ d.domain }}">{{ d.domain }}</a></td>
+          <td class="num">{{ d.objects }}</td>
+          <td>{{ quality(d.quality) }}</td>
+          <td class="num">{{ (d.freshness ~ '%') if d.freshness is not none else '—' }}</td>
+        </tr>
+      {% else %}<tr><td colspan="4" class="empty">No domains.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card pad-lg">
+    <h2>Recent Changes</h2>
+    <ul class="timeline mt">
+      {% for c in recent_changes %}
+      <li>
+        <div>
+          {{ badge(c.change_type) }}
+          {% if c.object_name %}<a href="/knowledge/{{ c.object_id }}">{{ c.object_name }}</a>{% endif %}
+          {% if c.field %}<span class="muted">— {{ c.field }}: {{ c.old_value or '∅' }} → <strong>{{ c.new_value }}</strong></span>
+          {% elif c.detail %}<span class="muted">— {{ c.detail }}</span>{% endif %}
+        </div>
+        <div class="t-time">{{ c.detected_at|timeago }}</div>
+      </li>
+      {% else %}<li class="empty">No recent changes.</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, type_dot, confidence %}
+{% block title %}{{ artifact.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/artifacts">Artifacts</a> / {{ artifact.file_type }}</div>
+    <h1>{{ artifact.title }}</h1>
+    <div class="sub mono">{{ artifact.path }}</div>
+  </div>
+  <div class="btn-group">
+    <button class="btn">Re-extract</button>
+    <button class="btn">Reclassify</button>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-main">
+    {% if artifact.classification %}
+    <div class="card">
+      <div class="flex between items-center"><h3>Classification</h3>{{ badge(artifact.classification.review_status) }}</div>
+      <p>{{ artifact.classification.long_summary or artifact.classification.short_summary }}</p>
+      <div class="flex wrap gap">
+        {% if artifact.classification.document_type %}<span class="chip">{{ artifact.classification.document_type }}</span>{% endif %}
+        {% for d in artifact.classification.domains %}<a class="chip" href="/domains/{{ d }}">{{ d }}</a>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <h3>Knowledge Objects Created ({{ artifact.knowledge_objects|length }})</h3>
+      {% for ko in artifact.knowledge_objects %}
+      <div class="flex between items-center" style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
+        <a href="/knowledge/{{ ko.id }}">{{ type_dot(ko.type) }} {{ ko.name }}</a>
+        <span class="flex items-center gap"><span class="chip">{{ ko.type }}</span>{{ confidence(ko.confidence) }}</span>
+      </div>
+      {% else %}<div class="empty">No knowledge objects extracted from this artifact.</div>{% endfor %}
+    </div>
+
+    <div class="card">
+      <h3>Links ({{ artifact.links|length }})</h3>
+      {% for l in artifact.links %}
+      <div class="flex between items-center" style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
+        <a href="{{ l.url }}" target="_blank" rel="noopener" class="mono">{{ l.url | truncate(54,true) }}</a>
+        <span class="flex gap">{% if l.target_system %}<span class="chip">{{ l.target_system }}</span>{% endif %}{{ badge(l.link_kind) }}</span>
+      </div>
+      {% else %}<div class="empty">No links discovered.</div>{% endfor %}
+    </div>
+  </div>
+
+  <aside class="card">
+    <h3>Details</h3>
+    <dl class="kv">
+      <dt>Status</dt><dd>{{ badge(artifact.status) }}</dd>
+      <dt>File type</dt><dd>{{ artifact.file_type }}</dd>
+      <dt>Source</dt><dd>{{ artifact.source_system }}</dd>
+      <dt>Size</dt><dd>{{ artifact.size_bytes | filesize }}</dd>
+      <dt>Created</dt><dd>{{ artifact.created_at | fmt_date }}</dd>
+      <dt>Modified</dt><dd>{{ artifact.modified_at | fmt_date }}</dd>
+      <dt>SHA-256</dt><dd class="mono faint" style="word-break:break-all">{{ (artifact.sha256 or '')[:16] }}…</dd>
+    </dl>
+  </aside>
+</div>
+{% endblock %}

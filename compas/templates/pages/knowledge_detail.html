@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, type_dot, confidence, quality %}
+{% block title %}{{ obj.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/knowledge">Knowledge</a> / {{ type_dot(obj.type) }} {{ obj.type }}</div>
+    <h1>{{ obj.name }}</h1>
+    <div class="flex gap items-center wrap">
+      <span id="obj-status">{{ badge(obj.status) }}</span>
+      {% if obj.lifecycle %}{{ badge(obj.lifecycle.freshness_state) }}{% endif %}
+      {% for d in obj.domains %}<a class="chip" href="/domains/{{ d }}">{{ d }}</a>{% endfor %}
+    </div>
+  </div>
+  <div class="btn-group">
+    <a class="btn" href="/graph?focus={{ obj.id }}">✦ Show in graph</a>
+    <button class="btn btn-success" hx-post="/knowledge/{{ obj.id }}/review"
+            hx-vals='{"action":"approve"}' hx-target="#obj-status" hx-swap="innerHTML">Approve</button>
+    <button class="btn btn-danger" hx-post="/knowledge/{{ obj.id }}/review"
+            hx-vals='{"action":"reject"}' hx-target="#obj-status" hx-swap="innerHTML">Reject</button>
+    <button class="btn" hx-post="/knowledge/{{ obj.id }}/review"
+            hx-vals='{"action":"archive"}' hx-target="#obj-status" hx-swap="innerHTML">Archive</button>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-main">
+    <div class="card">
+      <h3>Description</h3>
+      <p>{{ obj.description or 'No description.' }}</p>
+    </div>
+
+    <div class="card">
+      <h3>Relationships</h3>
+      {% for predicate, items in obj.relationships.items() %}
+      <div class="rel-group">
+        <div class="pred">{{ predicate|replace('_',' ') }}:</div>
+        {% for r in items %}
+        <div class="flex between items-center" style="padding:5px 0">
+          <a href="/knowledge/{{ r.object_id }}">{{ type_dot(r.type) }} {{ r.name }}</a>
+          <span class="flex gap items-center">{{ confidence(r.confidence) }}{{ badge(r.review_status) }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}<div class="empty">No relationships yet.</div>{% endfor %}
+    </div>
+
+    <div class="card">
+      <h3>Evidence <span class="faint">({{ obj.evidence_count }} quotes)</span></h3>
+      {% for e in obj.evidence[:12] %}
+      <div class="evidence-item">
+        <div class="quote">“{{ e.quote }}”</div>
+        <div class="faint" style="font-size:.76rem;margin-top:4px">
+          <a href="/artifacts/{{ e.artifact_id }}">{{ e.artifact_title }}</a>
+          {% if e.page_number %}· p.{{ e.page_number }}{% endif %}
+          {% if e.slide_number %}· slide {{ e.slide_number }}{% endif %}
+          · {{ (e.confidence*100)|round }}% confidence
+        </div>
+      </div>
+      {% else %}<div class="empty">No evidence.</div>{% endfor %}
+      {% if obj.evidence_count > 12 %}<div class="faint mt">+ {{ obj.evidence_count - 12 }} more quotes</div>{% endif %}
+    </div>
+
+    <div class="card">
+      <h3>Source Documents ({{ obj.documents|length }})</h3>
+      {% for d in obj.documents %}
+      <div class="flex between items-center" style="padding:6px 0;border-bottom:1px solid var(--border-soft)">
+        <a href="/artifacts/{{ d.id }}">{{ d.title }}</a>
+        <span class="flex gap items-center"><span class="chip">{{ d.file_type }}</span>{{ confidence(d.confidence) }}</span>
+      </div>
+      {% else %}<div class="empty">No documents.</div>{% endfor %}
+    </div>
+  </div>
+
+  <aside class="detail-main">
+    <div class="card">
+      <h3>Quality &amp; Confidence</h3>
+      <dl class="kv">
+        <dt>Quality score</dt><dd>{{ quality(obj.quality.quality_score if obj.quality else none) }}</dd>
+        <dt>Confidence</dt><dd>{{ confidence(obj.confidence) }}</dd>
+        {% if obj.quality %}
+        <dt>Evidence</dt><dd>{{ confidence(obj.quality.evidence_score) }}</dd>
+        <dt>Freshness</dt><dd>{{ confidence(obj.quality.freshness_score) }}</dd>
+        <dt>Consistency</dt><dd>{{ confidence(obj.quality.consistency_score) }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+    <div class="card">
+      <h3>Ownership &amp; Lifecycle</h3>
+      <dl class="kv">
+        <dt>Owners</dt><dd>{% for o in obj.owners %}<span class="chip">{{ o.id }}</span>{% else %}<span class="faint">Unassigned</span>{% endfor %}</dd>
+        {% if obj.lifecycle %}
+        <dt>Review state</dt><dd>{{ badge(obj.lifecycle.review_state) }}</dd>
+        <dt>Last reviewed</dt><dd>{{ obj.lifecycle.last_reviewed_at | timeago }}</dd>
+        <dt>Days since</dt><dd>{{ obj.lifecycle.days_since_review if obj.lifecycle.days_since_review is not none else '—' }}</dd>
+        {% endif %}
+        <dt>Created</dt><dd>{{ obj.created_at | fmt_date }}</dd>
+        <dt>Updated</dt><dd>{{ obj.updated_at | fmt_date }}</dd>
+      </dl>
+    </div>
+    <div class="card">
+      <h3>History &amp; Timeline</h3>
+      <ul class="timeline">
+        {% for h in obj.history %}
+        <li>
+          <div>{{ badge(h.change_type) }}
+            {% if h.field %}<span class="muted">{{ h.field }}: {{ h.old_value or '∅' }} → {{ h.new_value }}</span>
+            {% elif h.detail %}<span class="muted">{{ h.detail }}</span>{% endif %}</div>
+          <div class="t-time">{{ h.detected_at | timeago }}</div>
+        </li>
+        {% else %}<li class="empty">No recorded history.</li>{% endfor %}
+      </ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}

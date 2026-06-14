@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Compas — generated demo / Navigate catalog and caches
+/data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.pytest_cache/

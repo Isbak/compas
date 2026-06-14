@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, type_dot, quality %}
+{% block title %}{{ domain.domain }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="faint"><a href="/domains">Domains</a></div><h1>{{ domain.domain }}</h1></div>
+</div>
+<div class="grid cards mb">
+  <div class="card stat"><div class="label">Knowledge Objects</div><div class="value num">{{ domain.object_count }}</div></div>
+  <div class="card stat"><div class="label">Relationships</div><div class="value num">{{ domain.relationship_count }}</div></div>
+  <div class="card stat"><div class="label">Quality</div><div class="value num">{{ domain.quality if domain.quality is not none else '—' }}</div></div>
+  <div class="card stat"><div class="label">Freshness</div><div class="value num">{{ (domain.freshness ~ '%') if domain.freshness is not none else '—' }}</div></div>
+</div>
+{% if domain.owners %}
+<div class="card mb"><h3>Owners</h3>{% for o in domain.owners %}<span class="chip">{{ o }}</span>{% endfor %}</div>
+{% endif %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Review</th><th>Quality</th></tr></thead>
+    <tbody>
+    {% for o in domain.objects %}
+      <tr>
+        <td><a href="/knowledge/{{ o.id }}">{{ o.name }}</a></td>
+        <td>{{ type_dot(o.type) }} {{ o.type }}</td>
+        <td>{{ badge(o.status) }}</td>
+        <td>{{ badge(o.review_status) }}</td>
+        <td>{{ quality(o.quality_score) }}</td>
+      </tr>
+    {% else %}<tr><td colspan="5" class="empty">No objects in this domain.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
