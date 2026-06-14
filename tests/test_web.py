@@ -30,6 +30,19 @@ def test_htmx_partial_is_fragment(client):
     assert "table-wrap" in partial.text
 
 
+def test_timeago_handles_timezone_aware_datetimes(client):
+    from tests.conftest import ARTIFACTS
+
+    original = ARTIFACTS[0]["modified_at"]
+    ARTIFACTS[0]["modified_at"] = "2026-05-01T00:00:00+00:00"
+    try:
+        r = client.get("/artifacts")
+    finally:
+        ARTIFACTS[0]["modified_at"] = original
+    assert r.status_code == 200
+    assert "artifact-000" in r.text
+
+
 def test_artifact_detail_page(client):
     r = client.get("/artifacts/artifact-000")
     assert r.status_code == 200
