@@ -63,6 +63,36 @@ def test_knowledge_review_partial(client):
     assert ("ko-sfdc", "approve") in client.fake.actions
 
 
+def test_relationships_filter_by_predicate(client):
+    # Server-side predicate filter narrows the table to matching triples.
+    r = client.get("/relationships?predicate=affects", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "affects" in r.text and "supports" not in r.text
+
+
+def test_relationships_search_matches_source_or_target(client):
+    # Navigate's /relationships has no free-text search, so Compas resolves
+    # object names and filters by source/target client-side. Searching for the
+    # target "Salesforce" must keep its "affects" triple and drop unrelated ones.
+    r = client.get("/relationships?q=Salesforce", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "affects" in r.text
+    assert "supports" not in r.text and "implemented by" not in r.text
+
+    # Searching by source name returns that object's outgoing triples.
+    r = client.get("/relationships?q=Release Governance",
+                   headers={"HX-Request": "true"})
+    assert "supports" in r.text
+    assert "affects" not in r.text
+
+
+def test_relationships_search_combines_with_predicate(client):
+    r = client.get("/relationships?q=Release&predicate=supports",
+                   headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "supports" in r.text and "affects" not in r.text
+
+
 def test_relationship_review(client):
     r = client.post("/relationships/4/review", data={"action": "approve"})
     assert r.status_code == 200
