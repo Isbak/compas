@@ -11,10 +11,30 @@ Tests inject a fake implementing the same surface, so no real server is needed.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
 from .config import Settings, get_settings
+
+#: Allowlists for the POST action endpoints. The action is interpolated into
+#: the request path, so we never let an arbitrary value through — both to keep
+#: Compas from hitting an unintended Navigate endpoint and as defence in depth
+#: behind the route-level checks.
+ARTIFACT_ACTIONS = frozenset({"rescan", "extract", "classify"})
+KNOWLEDGE_ACTIONS = frozenset({"approve", "reject", "archive"})
+RELATIONSHIP_ACTIONS = frozenset({"approve", "reject"})
+
+
+def _seg(value: Any) -> str:
+    """Percent-encode a single URL path segment.
+
+    Ids come from the browser (URL path / form data) and are interpolated into
+    Navigate request paths. Encoding every segment with ``safe=""`` means a
+    value containing ``/``, ``?``, ``#`` or ``..`` can't escape its segment and
+    redirect the call to a different Navigate endpoint.
+    """
+    return quote(str(value), safe="")
 
 
 class NavigateError(RuntimeError):
@@ -91,21 +111,23 @@ class NavigateClient:
             "classification_status": classification_status, "search": search})
 
     def get_artifact(self, artifact_id: str) -> dict:
-        return self._get(f"/artifacts/{artifact_id}")
+        return self._get(f"/artifacts/{_seg(artifact_id)}")
 
     def artifact_links(self, artifact_id: str, *, limit: int = 100,
                        offset: int = 0) -> dict:
-        return self._get(f"/artifacts/{artifact_id}/links",
+        return self._get(f"/artifacts/{_seg(artifact_id)}/links",
                          {"limit": limit, "offset": offset})
 
     def artifact_evidence(self, artifact_id: str, *, limit: int = 100,
                           offset: int = 0) -> dict:
-        return self._get(f"/artifacts/{artifact_id}/evidence",
+        return self._get(f"/artifacts/{_seg(artifact_id)}/evidence",
                          {"limit": limit, "offset": offset})
 
     def artifact_action(self, artifact_id: str, action: str) -> dict:
-        # action ∈ {rescan, extract, classify}
-        return self._post(f"/artifacts/{artifact_id}/{action}")
+        if action not in ARTIFACT_ACTIONS:
+            raise NavigateError(f"Unsupported artifact action: {action!r}",
+                                status=400)
+        return self._post(f"/artifacts/{_seg(artifact_id)}/{action}")
 
     # -- knowledge objects ------------------------------------------------ #
     def list_knowledge(self, *, limit: int, offset: int, object_type: str | None = None,
@@ -119,26 +141,28 @@ class NavigateClient:
             "domain": domain, "min_confidence": min_confidence, "search": search})
 
     def get_knowledge(self, object_id: str) -> dict:
-        return self._get(f"/knowledge-objects/{object_id}")
+        return self._get(f"/knowledge-objects/{_seg(object_id)}")
 
     def knowledge_relationships(self, object_id: str, *, limit: int = 200,
                                 offset: int = 0) -> dict:
-        return self._get(f"/knowledge-objects/{object_id}/relationships",
+        return self._get(f"/knowledge-objects/{_seg(object_id)}/relationships",
                          {"limit": limit, "offset": offset})
 
     def knowledge_evidence(self, object_id: str, *, limit: int = 200,
                            offset: int = 0) -> dict:
-        return self._get(f"/knowledge-objects/{object_id}/evidence",
+        return self._get(f"/knowledge-objects/{_seg(object_id)}/evidence",
                          {"limit": limit, "offset": offset})
 
     def knowledge_mentions(self, object_id: str, *, limit: int = 200,
                            offset: int = 0) -> dict:
-        return self._get(f"/knowledge-objects/{object_id}/mentions",
+        return self._get(f"/knowledge-objects/{_seg(object_id)}/mentions",
                          {"limit": limit, "offset": offset})
 
     def knowledge_action(self, object_id: str, action: str) -> dict:
-        # action ∈ {approve, reject, archive}
-        return self._post(f"/knowledge-objects/{object_id}/{action}")
+        if action not in KNOWLEDGE_ACTIONS:
+            raise NavigateError(f"Unsupported knowledge action: {action!r}",
+                                status=400)
+        return self._post(f"/knowledge-objects/{_seg(object_id)}/{action}")
 
     # -- relationships ---------------------------------------------------- #
     def list_relationships(self, *, limit: int, offset: int,
@@ -154,11 +178,13 @@ class NavigateClient:
             "review_status": review_status, "min_confidence": min_confidence})
 
     def get_relationship(self, relationship_id: int) -> dict:
-        return self._get(f"/relationships/{relationship_id}")
+        return self._get(f"/relationships/{_seg(relationship_id)}")
 
     def relationship_action(self, relationship_id: int, action: str) -> dict:
-        # action ∈ {approve, reject}
-        return self._post(f"/relationships/{relationship_id}/{action}")
+        if action not in RELATIONSHIP_ACTIONS:
+            raise NavigateError(f"Unsupported relationship action: {action!r}",
+                                status=400)
+        return self._post(f"/relationships/{_seg(relationship_id)}/{action}")
 
     # -- evidence --------------------------------------------------------- #
     def list_evidence(self, *, limit: int, offset: int, artifact_id: str | None = None,
@@ -177,10 +203,10 @@ class NavigateClient:
         return self._get("/graph/nodes", {"limit": limit, "offset": offset})
 
     def graph_neighbors(self, object_id: str) -> dict:
-        return self._get(f"/graph/object/{object_id}/neighbors")
+        return self._get(f"/graph/object/{_seg(object_id)}/neighbors")
 
     def graph_impact(self, object_id: str) -> dict:
-        return self._get(f"/graph/object/{object_id}/impact")
+        return self._get(f"/graph/object/{_seg(object_id)}/impact")
 
     def graph_path(self, source: str, target: str,
                    max_depth: int | None = None) -> dict:
@@ -225,7 +251,7 @@ class NavigateClient:
             "status": status})
 
     def get_job(self, job_id: int) -> dict:
-        return self._get(f"/jobs/{job_id}")
+        return self._get(f"/jobs/{_seg(job_id)}")
 
     # -- links ------------------------------------------------------------ #
     def link_stats(self) -> dict:

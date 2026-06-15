@@ -50,6 +50,35 @@ def test_knowledge_objects_path_and_actions():
     assert seen["method"] == "POST"
 
 
+def test_path_ids_are_url_encoded():
+    # A crafted id must stay inside its path segment and not redirect the call
+    # to another Navigate endpoint.
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["raw_path"] = request.url.raw_path.decode()
+        return httpx.Response(200, json={"id": "x"})
+
+    client = _make_client(handler)
+    client.get_knowledge("../jobs/scan")
+    assert seen["raw_path"] == "/api/knowledge-objects/..%2Fjobs%2Fscan"
+
+
+def test_action_allowlist_rejects_unknown():
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("request must not be sent for an invalid action")
+
+    client = _make_client(handler)
+    for call in (
+        lambda: client.artifact_action("a-1", "delete"),
+        lambda: client.knowledge_action("ko-1", "drop"),
+        lambda: client.relationship_action(1, "archive"),
+    ):
+        with pytest.raises(NavigateError) as exc:
+            call()
+        assert exc.value.status == 400
+
+
 def test_bearer_auth_header():
     seen = {}
 

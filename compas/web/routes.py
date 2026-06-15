@@ -15,10 +15,18 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from markupsafe import escape
 
 from .. import service
 from ..config import get_settings
-from ..navigate_client import NavigateClient, NavigateError, get_client
+from ..navigate_client import (
+    ARTIFACT_ACTIONS,
+    KNOWLEDGE_ACTIONS,
+    RELATIONSHIP_ACTIONS,
+    NavigateClient,
+    NavigateError,
+    get_client,
+)
 from .templating import render
 
 router = APIRouter(include_in_schema=False)
@@ -104,13 +112,14 @@ def artifact_action(
     request: Request, artifact_id: str, action: str,
     client: NavigateClient = Depends(get_client),
 ):
-    if action not in {"rescan", "extract", "classify"}:
+    if action not in ARTIFACT_ACTIONS:
         return HTMLResponse("Unknown action", status_code=400)
     try:
         job = client.artifact_action(artifact_id, action)
     except NavigateError as exc:
-        return HTMLResponse(f'<span class="badge badge-rejected">{exc}</span>',
-                            status_code=502)
+        return HTMLResponse(
+            f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
+            status_code=502)
     return HTMLResponse(
         f'<span class="badge badge-info">Job #{job.get("id")} '
         f'{job.get("status", "queued")}</span>')
@@ -161,12 +170,15 @@ def knowledge_review(
     request: Request, object_id: str, action: str = Form(...),
     client: NavigateClient = Depends(get_client),
 ):
+    if action.lower() not in KNOWLEDGE_ACTIONS:
+        return HTMLResponse("Unknown action", status_code=400)
     try:
         service.review_object(client, object_id, action)
         obj = service.get_knowledge(client, object_id)
     except NavigateError as exc:
-        return HTMLResponse(f'<span class="badge badge-rejected">{exc}</span>',
-                            status_code=502)
+        return HTMLResponse(
+            f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
+            status_code=502)
     return render("partials/object_status.html", _ctx(request, obj=obj))
 
 
@@ -198,13 +210,17 @@ def relationship_review(
     request: Request, rel_id: int, action: str = Form(...),
     client: NavigateClient = Depends(get_client),
 ):
+    action = action.lower()
+    if action not in RELATIONSHIP_ACTIONS:
+        return HTMLResponse("Unknown action", status_code=400)
     try:
         service.review_relationship(client, rel_id, action)
     except NavigateError as exc:
-        return HTMLResponse(f'<span class="badge badge-rejected">{exc}</span>',
-                            status_code=502)
+        return HTMLResponse(
+            f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
+            status_code=502)
     return HTMLResponse(
-        f'<span class="badge badge-{action.lower()}">{action.upper()}D</span>')
+        f'<span class="badge badge-{action}">{action.upper()}D</span>')
 
 
 # --------------------------------------------------------------------------- #
@@ -260,6 +276,19 @@ def graph(request: Request, client: NavigateClient = Depends(get_client)):
         modes=["all", "capability", "technology", "decision", "team", "process"]))
 
 
+#: Hard cap on graph traversal depth requested from the browser, to bound how
+#: far an expansion can fan out across Navigate's /graph endpoints.
+MAX_GRAPH_DEPTH = 5
+
+
+def _clamp_depth(depth: int) -> int:
+    return max(1, min(depth, MAX_GRAPH_DEPTH))
+
+
+def _clamp_confidence(value: float) -> float:
+    return max(0.0, min(value, 1.0))
+
+
 @router.get("/graph/data")
 def graph_data(
     mode: str = "all", focus: str | None = None, depth: int = 1,
@@ -267,8 +296,8 @@ def graph_data(
 ):
     try:
         return JSONResponse(service.graph_payload(
-            client, mode=mode, focus=focus, depth=depth,
-            min_confidence=min_confidence))
+            client, mode=mode, focus=focus, depth=_clamp_depth(depth),
+            min_confidence=_clamp_confidence(min_confidence)))
     except NavigateError as exc:
         return JSONResponse({"error": str(exc)}, status_code=502)
 
@@ -278,7 +307,8 @@ def graph_neighbors(
     object_id: str, depth: int = 1, client: NavigateClient = Depends(get_client)
 ):
     try:
-        return JSONResponse(service.graph_payload(client, focus=object_id, depth=depth))
+        return JSONResponse(service.graph_payload(
+            client, focus=object_id, depth=_clamp_depth(depth)))
     except NavigateError as exc:
         return JSONResponse({"error": str(exc)}, status_code=502)
 
