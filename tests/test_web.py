@@ -66,7 +66,15 @@ def test_knowledge_review_partial(client):
 def test_relationship_review(client):
     r = client.post("/relationships/4/review", data={"action": "approve"})
     assert r.status_code == 200
-    assert "APPROVED" in r.text
+    # Badge class must match the styled CSS classes (past tense) and read
+    # correctly — not the old unstyled "badge-approve"/"REJECTD".
+    assert 'class="badge badge-approved"' in r.text
+    assert "Approved" in r.text
+    assert ("approve" in t for t in [a[1] for a in client.fake.actions])
+
+    r = client.post("/relationships/4/review", data={"action": "reject"})
+    assert 'class="badge badge-rejected"' in r.text
+    assert "Rejected" in r.text and "REJECTD" not in r.text
 
 
 def test_relationship_review_rejects_unknown_action(client):

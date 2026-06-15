@@ -219,8 +219,9 @@ def relationship_review(
         return HTMLResponse(
             f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
             status_code=502)
+    status = {"approve": "APPROVED", "reject": "REJECTED"}[action]
     return HTMLResponse(
-        f'<span class="badge badge-{action}">{action.upper()}D</span>')
+        f'<span class="badge badge-{status.lower()}">{status.title()}</span>')
 
 
 # --------------------------------------------------------------------------- #
