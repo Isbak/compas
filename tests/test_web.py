@@ -66,7 +66,40 @@ def test_knowledge_review_partial(client):
 def test_relationship_review(client):
     r = client.post("/relationships/4/review", data={"action": "approve"})
     assert r.status_code == 200
-    assert "APPROVED" in r.text
+    # Badge class must match the styled CSS classes (past tense) and read
+    # correctly — not the old unstyled "badge-approve"/"REJECTD".
+    assert 'class="badge badge-approved"' in r.text
+    assert "Approved" in r.text
+    assert ("approve" in t for t in [a[1] for a in client.fake.actions])
+
+    r = client.post("/relationships/4/review", data={"action": "reject"})
+    assert 'class="badge badge-rejected"' in r.text
+    assert "Rejected" in r.text and "REJECTD" not in r.text
+
+
+def test_relationship_review_rejects_unknown_action(client):
+    # A bogus action must not reach Navigate, must not be reflected into the
+    # response (XSS), and must not return a fake "success" badge.
+    payload = '"><script>alert(1)</script>'
+    r = client.post("/relationships/4/review", data={"action": payload})
+    assert r.status_code == 400
+    assert "<script>" not in r.text
+    assert client.fake.actions == []
+
+
+def test_knowledge_review_rejects_unknown_action(client):
+    r = client.post("/knowledge/ko-sfdc/review", data={"action": "<b>nope</b>"})
+    assert r.status_code == 400
+    assert "<b>nope" not in r.text
+    assert client.fake.actions == []
+
+
+def test_artifact_action_error_is_escaped(failing_client):
+    # When Navigate errors, the message is HTML-escaped (no raw markup leaks
+    # into the badge fragment).
+    r = failing_client.post("/artifacts/artifact-000/extract")
+    assert r.status_code == 502
+    assert "<script" not in r.text
 
 
 def test_artifact_action(client):
