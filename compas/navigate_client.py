@@ -262,10 +262,18 @@ class NavigateClient:
 
 
 def _clean(params: dict | None) -> dict | None:
-    """Drop ``None`` values so we don't send empty query parameters."""
+    """Drop ``None`` and empty-string values from query parameters.
+
+    The filter forms submit every field on each change, so an unselected
+    dropdown or an empty search box arrives as ``key=`` (an empty string, not
+    ``None``). Forwarding those to Navigate turns them into real ``?status=``
+    filters that match nothing and silently break filtering. We drop them here
+    while keeping meaningful falsy values such as ``0`` / ``0.0`` (e.g.
+    ``min_confidence=0``).
+    """
     if not params:
         return None
-    return {k: v for k, v in params.items() if v is not None}
+    return {k: v for k, v in params.items() if v is not None and v != ""}
 
 
 # --------------------------------------------------------------------------- #

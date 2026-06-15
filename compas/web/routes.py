@@ -193,7 +193,8 @@ def relationships(
 ):
     try:
         page_obj = service.list_relationships(
-            client, page=page, predicate=predicate, review_status=review_status)
+            client, page=page, predicate=predicate, review_status=review_status,
+            search=q)
     except NavigateError as exc:
         return _error_page(request, exc)
     ctx = _ctx(request, nav="relationships", page_obj=page_obj,

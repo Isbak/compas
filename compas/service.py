@@ -269,27 +269,45 @@ def review_object(client: NavigateClient, object_id: str, action: str) -> bool:
 # --------------------------------------------------------------------------- #
 def list_relationships(client: NavigateClient, *, page=1, page_size=None,
                        predicate=None, review_status=None,
-                       min_confidence=None) -> Page:
+                       min_confidence=None, search=None) -> Page:
     size, offset = _limits(page, page_size)
+    index = _objects_index(client)
+
+    def _row(r: dict) -> dict:
+        src, tgt = r.get("source_object"), r.get("target_object")
+        return {
+            "id": r.get("id"),
+            "source_id": src,
+            "source": index.get(src, {}).get("name") or src,
+            "source_type": index.get(src, {}).get("type"),
+            "predicate": r.get("predicate"),
+            "predicate_label": PREDICATE_LABELS.get(r.get("predicate"), r.get("predicate")),
+            "target_id": tgt,
+            "target": index.get(tgt, {}).get("name") or tgt,
+            "target_type": index.get(tgt, {}).get("type"),
+            "confidence": r.get("confidence"),
+            "evidence": r.get("evidence"),
+            "review_status": r.get("review_status"),
+        }
+
+    # Navigate's /relationships endpoint filters by predicate/review_status but
+    # has no free-text search. When a query is present we fetch the (server-
+    # filtered) set and match it against the resolved source/target names
+    # client-side, then paginate locally so the search spans every match.
+    if search:
+        env = client.list_relationships(
+            limit=get_settings().max_page_size, offset=0, predicate=predicate,
+            review_status=review_status, min_confidence=min_confidence)
+        q = search.lower()
+        rows = [row for row in (_row(r) for r in env.get("items", []))
+                if q in (row["source"] or "").lower()
+                or q in (row["target"] or "").lower()]
+        return Page(rows[offset:offset + size], len(rows), page, size)
+
     env = client.list_relationships(
         limit=size, offset=offset, predicate=predicate,
         review_status=review_status, min_confidence=min_confidence)
-    names = _name_map(client)
-    types = _type_map(client)
-    items = [{
-        "id": r.get("id"),
-        "source_id": r.get("source_object"),
-        "source": names.get(r.get("source_object"), r.get("source_object")),
-        "source_type": types.get(r.get("source_object")),
-        "predicate": r.get("predicate"),
-        "predicate_label": PREDICATE_LABELS.get(r.get("predicate"), r.get("predicate")),
-        "target_id": r.get("target_object"),
-        "target": names.get(r.get("target_object"), r.get("target_object")),
-        "target_type": types.get(r.get("target_object")),
-        "confidence": r.get("confidence"),
-        "evidence": r.get("evidence"),
-        "review_status": r.get("review_status"),
-    } for r in env.get("items", [])]
+    items = [_row(r) for r in env.get("items", [])]
     return _page(env, items, page, size)
 
 

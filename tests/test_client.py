@@ -36,6 +36,29 @@ def test_builds_paginated_url():
     assert "scan_status" not in seen["url"]
 
 
+def test_empty_string_filters_are_dropped():
+    # The filter forms submit every field on each change, so unselected
+    # dropdowns / empty search boxes arrive as empty strings. These must not be
+    # forwarded as real ``?status=`` filters (which match nothing on Navigate),
+    # but meaningful falsy values like ``min_confidence=0`` must survive.
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"items": [], "limit": 50, "offset": 0,
+                                         "total": 0})
+
+    client = _make_client(handler)
+    client.list_knowledge(limit=50, offset=0, object_type="Risk", status="",
+                          review_status="", search="", min_confidence=0)
+    assert "object_type=Risk" in seen["url"]
+    assert "status=" not in seen["url"]
+    assert "review_status=" not in seen["url"]
+    assert "search=" not in seen["url"]
+    # A genuine zero filter must still be sent.
+    assert "min_confidence=0" in seen["url"]
+
+
 def test_knowledge_objects_path_and_actions():
     seen = {}
 
