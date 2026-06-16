@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge %}
+{% block title %}{{ std.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/compliance/standards">Standards</a></div>
+    <h1>{{ std.name }}</h1>
+    <div class="flex gap items-center wrap">
+      <span id="obj-status">{{ badge(std.status) }}</span>
+      {% if std.authority %}<span class="chip">{{ std.authority }}</span>{% endif %}
+      {% if std.version %}<span class="chip">v{{ std.version }}</span>{% endif %}
+      {% if std.jurisdiction %}<span class="chip">{{ std.jurisdiction }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-success" hx-post="/compliance/standards/{{ std.id }}/review"
+            hx-vals='{"action":"approve"}' hx-target="#obj-status" hx-swap="innerHTML">Approve</button>
+    <button class="btn btn-danger" hx-post="/compliance/standards/{{ std.id }}/review"
+            hx-vals='{"action":"reject"}' hx-target="#obj-status" hx-swap="innerHTML">Reject</button>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-main">
+    <div class="card">
+      <h3>Requirements <span class="faint">({{ std.requirements|length }})</span></h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Clause</th><th>Requirement</th><th>Obligation</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for r in std.requirements %}
+            <tr>
+              <td class="mono">{{ r.clause_ref or '—' }}</td>
+              <td><a href="/compliance/requirements/{{ r.id }}">{{ r.title or r.name }}</a></td>
+              <td>{{ badge(r.obligation_level) }}</td>
+              <td>{{ badge(r.status) }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="empty">No requirements.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Equations <span class="faint">({{ std.equations|length }})</span></h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Title</th><th>Expression</th><th>Valid</th></tr></thead>
+          <tbody>
+          {% for e in std.equations %}
+            <tr>
+              <td class="mono"><a href="/compliance/equations/{{ e.id }}">{{ e.symbol or e.name }}</a></td>
+              <td>{{ e.title or '—' }}</td>
+              <td><code>{{ e.expression }}</code></td>
+              <td>{% if e.valid %}<span class="badge badge-approved">Valid</span>{% else %}<span class="badge badge-rejected">Invalid</span>{% endif %}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="empty">No equations.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

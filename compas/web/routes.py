@@ -21,6 +21,7 @@ from .. import service
 from ..config import get_settings
 from ..navigate_client import (
     ARTIFACT_ACTIONS,
+    ASSESSMENT_ACTIONS,
     KNOWLEDGE_ACTIONS,
     RELATIONSHIP_ACTIONS,
     NavigateClient,
@@ -223,6 +224,200 @@ def relationship_review(
     status = {"approve": "APPROVED", "reject": "REJECTED"}[action]
     return HTMLResponse(
         f'<span class="badge badge-{status.lower()}">{status.title()}</span>')
+
+
+# --------------------------------------------------------------------------- #
+# Compliance & standards
+# --------------------------------------------------------------------------- #
+def _status_badge(status: str) -> HTMLResponse:
+    return HTMLResponse(
+        f'<span class="badge badge-{status.lower()}">{status.title()}</span>')
+
+
+#: Action → resulting knowledge-object status, for the optimistic badge swap.
+_REVIEW_STATUS = {"approve": "APPROVED", "reject": "REJECTED",
+                  "archive": "ARCHIVED"}
+
+
+@router.get("/compliance", response_class=HTMLResponse)
+def compliance(request: Request, client: NavigateClient = Depends(get_client)):
+    try:
+        data = service.compliance_home(client)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    return render("pages/compliance.html",
+                  _ctx(request, nav="compliance", data=data))
+
+
+@router.get("/compliance/standards", response_class=HTMLResponse)
+def standards(request: Request, client: NavigateClient = Depends(get_client)):
+    try:
+        items = service.list_standards(client)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    ctx = _ctx(request, nav="standards", standards=items)
+    if request.headers.get("HX-Request"):
+        return render("partials/standards_table.html", ctx)
+    return render("pages/standards.html", ctx)
+
+
+@router.get("/compliance/standards/{object_id}", response_class=HTMLResponse)
+def standard_detail(
+    request: Request, object_id: str, client: NavigateClient = Depends(get_client)
+):
+    try:
+        std = service.get_standard(client, object_id)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    if std is None:
+        return render("pages/not_found.html", _ctx(request, what="Standard"),
+                      status_code=404)
+    return render("pages/standard_detail.html",
+                  _ctx(request, nav="standards", std=std))
+
+
+@router.get("/compliance/requirements", response_class=HTMLResponse)
+def requirements(
+    request: Request, page: int = 1, standard: str | None = None,
+    client: NavigateClient = Depends(get_client),
+):
+    try:
+        page_obj = service.list_requirements(client, page=page, standard=standard)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    ctx = _ctx(request, nav="requirements", page_obj=page_obj,
+               filters=service.compliance_filter_options(client),
+               active={"standard": standard})
+    if request.headers.get("HX-Request"):
+        return render("partials/requirements_table.html", ctx)
+    return render("pages/requirements.html", ctx)
+
+
+@router.get("/compliance/requirements/{object_id}", response_class=HTMLResponse)
+def requirement_detail(
+    request: Request, object_id: str, client: NavigateClient = Depends(get_client)
+):
+    try:
+        req = service.get_requirement(client, object_id)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    if req is None:
+        return render("pages/not_found.html", _ctx(request, what="Requirement"),
+                      status_code=404)
+    return render("pages/requirement_detail.html",
+                  _ctx(request, nav="requirements", req=req))
+
+
+@router.get("/compliance/equations", response_class=HTMLResponse)
+def equations(
+    request: Request, page: int = 1, standard: str | None = None,
+    client: NavigateClient = Depends(get_client),
+):
+    try:
+        page_obj = service.list_equations(client, page=page, standard=standard)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    ctx = _ctx(request, nav="equations", page_obj=page_obj,
+               filters=service.compliance_filter_options(client),
+               active={"standard": standard})
+    if request.headers.get("HX-Request"):
+        return render("partials/equations_table.html", ctx)
+    return render("pages/equations.html", ctx)
+
+
+@router.get("/compliance/equations/{object_id}", response_class=HTMLResponse)
+def equation_detail(
+    request: Request, object_id: str, client: NavigateClient = Depends(get_client)
+):
+    try:
+        eq = service.get_equation(client, object_id)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    if eq is None:
+        return render("pages/not_found.html", _ctx(request, what="Equation"),
+                      status_code=404)
+    return render("pages/equation_detail.html",
+                  _ctx(request, nav="equations", eq=eq))
+
+
+@router.get("/compliance/gaps", response_class=HTMLResponse)
+def gaps(request: Request, client: NavigateClient = Depends(get_client)):
+    try:
+        items = service.list_gaps(client)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    return render("pages/gaps.html", _ctx(request, nav="gaps", gaps=items))
+
+
+@router.get("/compliance/assessments", response_class=HTMLResponse)
+def assessments(
+    request: Request, status: str | None = None,
+    client: NavigateClient = Depends(get_client),
+):
+    try:
+        items = service.list_assessments(client, status=status)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    ctx = _ctx(request, nav="assessments", assessments=items,
+               filters=service.compliance_filter_options(client),
+               active={"status": status})
+    if request.headers.get("HX-Request"):
+        return render("partials/assessments_table.html", ctx)
+    return render("pages/assessments.html", ctx)
+
+
+# Declared before the generic ``/compliance/{kind}/.../review`` so the
+# assessment route (which uses Navigate's dedicated endpoint) wins the match.
+@router.post("/compliance/assessments/{assessment_id}/review",
+             response_class=HTMLResponse)
+def assessment_review(
+    request: Request, assessment_id: int, action: str = Form(...),
+    client: NavigateClient = Depends(get_client),
+):
+    action = action.lower()
+    if action not in ASSESSMENT_ACTIONS:
+        return HTMLResponse("Unknown action", status_code=400)
+    try:
+        service.review_assessment(client, assessment_id, action)
+    except NavigateError as exc:
+        return HTMLResponse(
+            f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
+            status_code=502)
+    return _status_badge({"approve": "APPROVED", "reject": "REJECTED"}[action])
+
+
+@router.post("/compliance/{kind}/{object_id}/review", response_class=HTMLResponse)
+def compliance_review(
+    request: Request, kind: str, object_id: str, action: str = Form(...),
+    client: NavigateClient = Depends(get_client),
+):
+    action = action.lower()
+    if kind not in ("standards", "requirements", "equations"):
+        return HTMLResponse("Unknown resource", status_code=400)
+    if action not in KNOWLEDGE_ACTIONS:
+        return HTMLResponse("Unknown action", status_code=400)
+    try:
+        service.review_object(client, object_id, action)
+    except NavigateError as exc:
+        return HTMLResponse(
+            f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
+            status_code=502)
+    return _status_badge(_REVIEW_STATUS[action])
+
+
+@router.post("/compliance/assess", response_class=HTMLResponse)
+def compliance_assess(
+    request: Request, client: NavigateClient = Depends(get_client)
+):
+    try:
+        job = client.compliance_assess()
+    except NavigateError as exc:
+        return HTMLResponse(
+            f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
+            status_code=502)
+    return HTMLResponse(
+        f'<span class="badge badge-info">Job #{job.get("id")} '
+        f'{job.get("status", "queued")}</span>')
 
 
 # --------------------------------------------------------------------------- #

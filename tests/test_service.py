@@ -97,3 +97,47 @@ def test_ask_maps_navigate_response(fake_client):
     assert ans["objects_used"][0]["name"] == "Release Governance"
     assert ans["evidence"]
     assert ans["focus_id"] == "ko-relgov"
+
+
+# --- Compliance & standards ------------------------------------------------ #
+def test_compliance_home_maps_coverage(fake_client):
+    home = service.compliance_home(fake_client)
+    assert home["overall"] == 0.5
+    assert home["standard_count"] == 2
+    assert home["equation_count"] == 2
+    assert {s["standard_name"] for s in home["coverage"]} == {"Eurocode 2", "ISO 27001"}
+    assert home["gaps"] and home["gaps"][0]["standard_name"] == "ISO 27001"
+
+
+def test_standard_detail_includes_requirements_and_equations(fake_client):
+    std = service.get_standard(fake_client, "std-ec2")
+    assert std["name"] == "Eurocode 2"
+    assert any(r["id"] == "req-ec2-bend" for r in std["requirements"])
+    assert any(e["id"] == "eq-mrd" for e in std["equations"])
+
+
+def test_equation_detail_pretty_prints_ast_and_resolves_names(fake_client):
+    eq = service.get_equation(fake_client, "eq-mrd")
+    assert eq["symbol"] == "M_Rd"
+    assert eq["standard_name"] == "Eurocode 2"
+    # AST string is reformatted with indentation for display.
+    assert "\n" in eq["ast_pretty"]
+    assert [v["symbol"] for v in eq["variables"]] == ["A_s", "f_yd", "z"]
+
+
+def test_invalid_equation_keeps_validation_note(fake_client):
+    eq = service.get_equation(fake_client, "eq-bad")
+    assert eq["valid"] is False
+    assert "imports" in eq["validation_note"]
+
+
+def test_requirement_detail_narrows_equations(fake_client):
+    req = service.get_requirement(fake_client, "req-ec2-bend")
+    assert req["standard_name"] == "Eurocode 2"
+    assert all(e["requirement_object_id"] == "req-ec2-bend" for e in req["equations"])
+    assert req["proof"]["proven"] is True
+
+
+def test_review_assessment_calls_dedicated_endpoint(fake_client):
+    assert service.review_assessment(fake_client, 1, "approve")
+    assert (1, "approve") in fake_client.actions

@@ -24,6 +24,7 @@ from .config import Settings, get_settings
 ARTIFACT_ACTIONS = frozenset({"rescan", "extract", "classify"})
 KNOWLEDGE_ACTIONS = frozenset({"approve", "reject", "archive"})
 RELATIONSHIP_ACTIONS = frozenset({"approve", "reject"})
+ASSESSMENT_ACTIONS = frozenset({"approve", "reject"})
 
 
 def _seg(value: Any) -> str:
@@ -259,6 +260,51 @@ class NavigateClient:
 
     def top_targets(self, *, limit: int = 20) -> list:
         return self._get("/links/top-targets", {"limit": limit})
+
+    # -- compliance & standards ------------------------------------------- #
+    def list_compliance_standards(self) -> list:
+        return self._get("/compliance/standards")
+
+    def get_compliance_standard(self, object_id: str) -> dict:
+        return self._get(f"/compliance/standards/{_seg(object_id)}")
+
+    def list_compliance_requirements(self, *, limit: int, offset: int,
+                                     standard: str | None = None) -> dict:
+        return self._get("/compliance/requirements", {
+            "limit": limit, "offset": offset, "standard": standard})
+
+    def get_compliance_requirement(self, object_id: str) -> dict:
+        return self._get(f"/compliance/requirements/{_seg(object_id)}")
+
+    def list_compliance_equations(self, *, limit: int, offset: int,
+                                  standard: str | None = None) -> dict:
+        return self._get("/compliance/equations", {
+            "limit": limit, "offset": offset, "standard": standard})
+
+    def get_compliance_equation(self, object_id: str) -> dict:
+        return self._get(f"/compliance/equations/{_seg(object_id)}")
+
+    def compliance_coverage(self) -> dict:
+        return self._get("/compliance/coverage")
+
+    def compliance_gaps(self) -> list:
+        return self._get("/compliance/gaps")
+
+    def compliance_assessments(self, *, status: str | None = None) -> list:
+        return self._get("/compliance/assessments", {"status": status})
+
+    def compliance_prove(self, requirement: str) -> dict:
+        return self._get(f"/compliance/prove/{_seg(requirement)}")
+
+    def assessment_action(self, assessment_id: int, action: str) -> dict:
+        if action not in ASSESSMENT_ACTIONS:
+            raise NavigateError(f"Unsupported assessment action: {action!r}",
+                                status=400)
+        return self._post(
+            f"/compliance/assessments/{_seg(assessment_id)}/{action}")
+
+    def compliance_assess(self) -> dict:
+        return self._post("/compliance/assess")
 
 
 def _clean(params: dict | None) -> dict | None:

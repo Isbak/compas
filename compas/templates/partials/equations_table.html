@@ -1,0 +1,31 @@
+{% from "macros.html" import badge, pagination %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Symbol</th><th>Title</th><th>Expression</th>
+          <th>Valid</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for e in page_obj.items %}
+      <tr>
+        <td class="mono"><a href="/compliance/equations/{{ e.id }}"><strong>{{ e.symbol or e.name }}</strong></a></td>
+        <td>{{ e.title or '—' }}</td>
+        <td><code>{{ e.expression }}</code></td>
+        <td>{% if e.valid %}<span class="badge badge-approved">Valid</span>{% else %}<span class="badge badge-rejected">Invalid</span>{% endif %}</td>
+        <td><span id="rev-{{ e.id }}">{{ badge(e.status) }}</span></td>
+        <td>
+          <div class="btn-group">
+            <a class="btn btn-sm" href="/compliance/equations/{{ e.id }}">Open</a>
+            <button class="btn btn-sm btn-success" title="Approve"
+                    hx-post="/compliance/equations/{{ e.id }}/review"
+                    hx-vals='{"action":"approve"}' hx-target="#rev-{{ e.id }}" hx-swap="innerHTML">✓</button>
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty">No equations match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {{ pagination(page_obj, '#equations-table', '/compliance/equations', active) }}
+</div>

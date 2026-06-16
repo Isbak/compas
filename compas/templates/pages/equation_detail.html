@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge %}
+{% block title %}{{ eq.symbol or eq.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/compliance/equations">Equations</a></div>
+    <h1>{{ eq.title or eq.symbol or eq.name }}</h1>
+    <div class="flex gap items-center wrap">
+      <span id="obj-status">{{ badge(eq.status) }}</span>
+      {% if eq.valid %}<span class="badge badge-approved">Valid</span>
+      {% else %}<span class="badge badge-rejected">Invalid</span>{% endif %}
+      {% if eq.symbol %}<span class="chip mono">{{ eq.symbol }}</span>{% endif %}
+      {% if eq.clause_ref %}<span class="chip">{{ eq.clause_ref }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-success" hx-post="/compliance/equations/{{ eq.id }}/review"
+            hx-vals='{"action":"approve"}' hx-target="#obj-status" hx-swap="innerHTML">Approve</button>
+    <button class="btn btn-danger" hx-post="/compliance/equations/{{ eq.id }}/review"
+            hx-vals='{"action":"reject"}' hx-target="#obj-status" hx-swap="innerHTML">Reject</button>
+    <button class="btn" hx-post="/compliance/equations/{{ eq.id }}/review"
+            hx-vals='{"action":"archive"}' hx-target="#obj-status" hx-swap="innerHTML">Archive</button>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-main">
+    <div class="card">
+      <h3>Expression</h3>
+      <pre class="code-block">{{ eq.expression or '—' }}</pre>
+      {% if not eq.valid and eq.validation_note %}
+      <p class="faint"><strong>Validation:</strong> {{ eq.validation_note }}</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h3>Variables <span class="faint">({{ eq.variables|length }})</span></h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Description</th><th>Unit</th></tr></thead>
+          <tbody>
+          {% for v in eq.variables %}
+            <tr>
+              <td class="mono">{{ v.symbol }}</td>
+              <td>{{ v.description or '—' }}</td>
+              <td class="mono">{{ v.unit or '—' }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="3" class="empty">No variables declared.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if eq.python_code %}
+    <div class="card">
+      <h3>Python</h3>
+      <pre class="code-block">{{ eq.python_code }}</pre>
+    </div>
+    {% endif %}
+
+    {% if eq.ast_pretty %}
+    <div class="card">
+      <h3>Abstract syntax tree</h3>
+      <pre class="code-block">{{ eq.ast_pretty }}</pre>
+    </div>
+    {% endif %}
+
+    {% if eq.latex %}
+    <div class="card">
+      <h3>LaTeX</h3>
+      <pre class="code-block">{{ eq.latex }}</pre>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <h3>Evidence <span class="faint">({{ eq.evidence_count }} quotes)</span></h3>
+      {% for e in eq.evidence[:12] %}
+      <div class="evidence-item">
+        <div class="quote">"{{ e.quote }}"</div>
+        <div class="faint" style="font-size:.76rem;margin-top:4px">
+          <a href="/artifacts/{{ e.artifact_id }}">{{ e.artifact_title }}</a>
+          {% if e.page_number %}· p.{{ e.page_number }}{% endif %}
+        </div>
+      </div>
+      {% else %}<div class="empty">No evidence linked.</div>{% endfor %}
+    </div>
+  </div>
+
+  <aside class="detail-main">
+    <div class="card">
+      <h3>Source</h3>
+      <dl class="kv">
+        <dt>Standard</dt>
+        <dd>{% if eq.standard_object_id %}<a href="/compliance/standards/{{ eq.standard_object_id }}">{{ eq.standard_name or eq.standard_object_id }}</a>{% else %}—{% endif %}</dd>
+        <dt>Requirement</dt>
+        <dd>{% if eq.requirement_object_id %}<a href="/compliance/requirements/{{ eq.requirement_object_id }}">{{ eq.requirement_name or eq.requirement_object_id }}</a>{% else %}—{% endif %}</dd>
+        <dt>Clause</dt><dd class="mono">{{ eq.clause_ref or '—' }}</dd>
+        <dt>Status</dt><dd>{{ badge(eq.status) }}</dd>
+      </dl>
+    </div>
+  </aside>
+</div>
+{% endblock %}

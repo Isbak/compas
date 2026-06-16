@@ -85,6 +85,35 @@ catalog api --host 127.0.0.1 --port 8000     # Swagger at /docs, schema at /open
 - `POST /ask` — body `AskRequest { question, depth, show_context, show_evidence }` →
   `AskResponse { answer, confidence (band string), objects_used[], relationships_used[], evidence_used[], context? }`
 
+### Compliance & standards
+Navigate ingests standards (Eurocodes, ISO, GDPR…) as `Standard`/`Requirement`
+knowledge objects, extracts machine-readable `Equation`s, and tracks coverage,
+gaps and assessment records. Standards, Requirements and Equations are knowledge
+objects, so their **approve/reject/archive** reuses
+`POST /knowledge-objects/{id}/...`; only **Assessments** use the dedicated action
+endpoints below.
+
+- `GET /compliance/standards` → `[ComplianceStandard]`
+- `GET /compliance/standards/{object_id}` → `ComplianceStandard`
+- `GET /compliance/requirements` — filter: `standard` → `Paginated[ComplianceRequirement]`
+- `GET /compliance/requirements/{object_id}` → `ComplianceRequirement`
+- `GET /compliance/equations` — filter: `standard` → `Paginated[ComplianceEquation]`
+- `GET /compliance/equations/{object_id}` → `ComplianceEquation`
+- `GET /compliance/coverage` → `ComplianceCoverageResponse`
+- `GET /compliance/gaps` → `[ComplianceGap]`
+- `GET /compliance/assessments` — filter: `status` → `[ComplianceAssessment]`
+- `GET /compliance/prove/{requirement}` → `ComplianceProofResponse`
+- `POST /compliance/assessments/{assessment_id}/approve|reject` → `ActionResponse`
+- `POST /compliance/assess` → `Job`
+
+`ComplianceStandard { object_id, name, authority, version, jurisdiction, status? }`
+`ComplianceRequirement { object_id, name, standard_object_id, clause_ref, title, requirement_text, obligation_level, status? }`
+`ComplianceEquation { object_id, name, standard_object_id, requirement_object_id, clause_ref, symbol, title, expression, python_code, ast_json, variables: [ComplianceEquationVariable{ symbol, description, unit }], latex, valid, validation_note, status? }`
+`ComplianceCoverageResponse { overall, standards: [ComplianceCoverageStandard{ standard_object_id, standard_name, total, satisfied, partial, coverage }] }`
+`ComplianceGap { object_id, requirement_name, clause_ref, title, obligation_level, standard_object_id, standard_name }`
+`ComplianceAssessment { id, requirement_object_id, requirement_name?, control_object_id?, control_name?, status, review_status, assessed_against_version, rationale }`
+`ComplianceProofResponse { found, proven, term, message, requirement{}, assessments[] }`
+
 ### Jobs (async pipeline)
 - `POST /jobs/scan|extract|discover-links|classify|consolidate` → `Job`
 - `GET /jobs?job_type=&status=` → `Paginated[Job]`

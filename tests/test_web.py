@@ -5,7 +5,9 @@ from __future__ import annotations
 import pytest
 
 PAGES = ["/", "/artifacts", "/knowledge", "/relationships", "/domains",
-         "/governance", "/graph", "/graphrag", "/observability", "/settings"]
+         "/governance", "/graph", "/graphrag", "/observability", "/settings",
+         "/compliance", "/compliance/standards", "/compliance/requirements",
+         "/compliance/equations", "/compliance/gaps", "/compliance/assessments"]
 
 
 @pytest.mark.parametrize("path", PAGES)
@@ -187,3 +189,63 @@ def test_error_page_when_navigate_down(failing_client):
     r = failing_client.get("/")
     assert r.status_code == 502
     assert "Navigate API unavailable" in r.text
+
+
+# --- Compliance & standards ------------------------------------------------ #
+def test_equation_detail_page(client):
+    r = client.get("/compliance/equations/eq-mrd")
+    assert r.status_code == 200
+    assert "M_Rd" in r.text
+    assert "Variables" in r.text and "A_s" in r.text
+    # Machine-readable surfaces are rendered.
+    assert "Python" in r.text and "syntax tree" in r.text
+
+
+def test_requirement_detail_page(client):
+    r = client.get("/compliance/requirements/req-ec2-bend")
+    assert r.status_code == 200
+    assert "Design bending resistance" in r.text
+    assert "Eurocode 2" in r.text
+
+
+def test_standard_detail_page(client):
+    r = client.get("/compliance/standards/std-ec2")
+    assert r.status_code == 200
+    assert "Eurocode 2" in r.text and "M_Rd" in r.text
+
+
+def test_equations_filter_by_standard(client):
+    r = client.get("/compliance/equations?standard=std-ec2",
+                   headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "<!DOCTYPE html>" not in r.text
+    assert "M_Rd" in r.text
+
+
+def test_equation_review_uses_knowledge_action(client):
+    # Equations are knowledge objects: approval reuses the KO action endpoint.
+    r = client.post("/compliance/equations/eq-mrd/review",
+                    data={"action": "approve"})
+    assert r.status_code == 200
+    assert 'class="badge badge-approved"' in r.text
+    assert ("eq-mrd", "approve") in client.fake.actions
+
+
+def test_assessment_review_uses_assessment_action(client):
+    r = client.post("/compliance/assessments/1/review", data={"action": "approve"})
+    assert r.status_code == 200
+    assert 'class="badge badge-approved"' in r.text
+    assert (1, "approve") in client.fake.actions
+
+
+def test_compliance_review_rejects_unknown_resource(client):
+    r = client.post("/compliance/bogus/x/review", data={"action": "approve"})
+    assert r.status_code == 400
+    assert client.fake.actions == []
+
+
+def test_run_assessment_enqueues_job(client):
+    r = client.post("/compliance/assess")
+    assert r.status_code == 200
+    assert "Job #77" in r.text
+    assert ("assess", "assess") in client.fake.actions

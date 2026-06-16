@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge %}
+{% block title %}{{ req.title or req.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/compliance/requirements">Requirements</a></div>
+    <h1>{{ req.title or req.name }}</h1>
+    <div class="flex gap items-center wrap">
+      <span id="obj-status">{{ badge(req.status) }}</span>
+      {{ badge(req.obligation_level) }}
+      {% if req.clause_ref %}<span class="chip mono">{{ req.clause_ref }}</span>{% endif %}
+      {% if req.standard_object_id %}<span class="chip"><a href="/compliance/standards/{{ req.standard_object_id }}">{{ req.standard_name or req.standard_object_id }}</a></span>{% endif %}
+    </div>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-success" hx-post="/compliance/requirements/{{ req.id }}/review"
+            hx-vals='{"action":"approve"}' hx-target="#obj-status" hx-swap="innerHTML">Approve</button>
+    <button class="btn btn-danger" hx-post="/compliance/requirements/{{ req.id }}/review"
+            hx-vals='{"action":"reject"}' hx-target="#obj-status" hx-swap="innerHTML">Reject</button>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-main">
+    <div class="card">
+      <h3>Requirement</h3>
+      <p>{{ req.requirement_text or 'No text.' }}</p>
+    </div>
+
+    <div class="card">
+      <h3>Equations <span class="faint">({{ req.equations|length }})</span></h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Title</th><th>Expression</th><th>Valid</th></tr></thead>
+          <tbody>
+          {% for e in req.equations %}
+            <tr>
+              <td class="mono"><a href="/compliance/equations/{{ e.id }}">{{ e.symbol or e.name }}</a></td>
+              <td>{{ e.title or '—' }}</td>
+              <td><code>{{ e.expression }}</code></td>
+              <td>{% if e.valid %}<span class="badge badge-approved">Valid</span>{% else %}<span class="badge badge-rejected">Invalid</span>{% endif %}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="empty">No equations.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Evidence <span class="faint">({{ req.evidence_count }} quotes)</span></h3>
+      {% for e in req.evidence[:12] %}
+      <div class="evidence-item">
+        <div class="quote">"{{ e.quote }}"</div>
+        <div class="faint" style="font-size:.76rem;margin-top:4px">
+          <a href="/artifacts/{{ e.artifact_id }}">{{ e.artifact_title }}</a>
+          {% if e.page_number %}· p.{{ e.page_number }}{% endif %}
+        </div>
+      </div>
+      {% else %}<div class="empty">No evidence linked.</div>{% endfor %}
+    </div>
+  </div>
+
+  <aside class="detail-main">
+    <div class="card">
+      <h3>Proof of compliance</h3>
+      <dl class="kv">
+        <dt>Found</dt><dd>{% if req.proof.found %}Yes{% else %}No{% endif %}</dd>
+        <dt>Proven</dt>
+        <dd>{% if req.proof.proven %}<span class="badge badge-approved">Proven</span>{% else %}<span class="badge badge-proposed">Unproven</span>{% endif %}</dd>
+      </dl>
+      {% if req.proof.message %}<p class="faint">{{ req.proof.message }}</p>{% endif %}
+      {% if req.proof.assessments %}
+      <h4 class="faint" style="margin-top:10px">Assessments</h4>
+      {% for a in req.proof.assessments %}
+      <div class="flex between items-center" style="padding:5px 0">
+        <span>{{ a.control_name or a.control_object_id or '—' }}</span>
+        {{ badge(a.status) }}
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+  </aside>
+</div>
+{% endblock %}
