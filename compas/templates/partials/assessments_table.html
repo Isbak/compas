@@ -1,0 +1,32 @@
+{% from "macros.html" import badge %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Requirement</th><th>Control</th><th>Status</th>
+          <th>Review</th><th>Version</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for a in assessments %}
+      <tr>
+        <td><a href="/compliance/requirements/{{ a.requirement_object_id }}"><strong>{{ a.requirement_name or a.requirement_object_id }}</strong></a></td>
+        <td>{{ a.control_name or a.control_object_id or '—' }}</td>
+        <td>{{ badge(a.status) }}</td>
+        <td><span id="arev-{{ a.id }}">{{ badge(a.review_status) }}</span></td>
+        <td class="mono">{{ a.assessed_against_version or '—' }}</td>
+        <td>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-success" title="Approve"
+                    hx-post="/compliance/assessments/{{ a.id }}/review"
+                    hx-vals='{"action":"approve"}' hx-target="#arev-{{ a.id }}" hx-swap="innerHTML">✓</button>
+            <button class="btn btn-sm btn-danger" title="Reject"
+                    hx-post="/compliance/assessments/{{ a.id }}/review"
+                    hx-vals='{"action":"reject"}' hx-target="#arev-{{ a.id }}" hx-swap="innerHTML">✕</button>
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty">No assessments match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>

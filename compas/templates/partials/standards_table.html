@@ -1,0 +1,23 @@
+{% from "macros.html" import badge %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Authority</th><th>Version</th>
+          <th>Jurisdiction</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for s in standards %}
+      <tr>
+        <td><a href="/compliance/standards/{{ s.id }}"><strong>{{ s.name }}</strong></a></td>
+        <td class="muted">{{ s.authority or '—' }}</td>
+        <td class="muted">{{ s.version or '—' }}</td>
+        <td class="muted">{{ s.jurisdiction or '—' }}</td>
+        <td>{{ badge(s.status) }}</td>
+        <td><a class="btn btn-sm" href="/compliance/standards/{{ s.id }}">Open</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty">No standards ingested yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge %}
+{% block title %}Compliance gaps{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/compliance">Compliance</a> / Gaps</div>
+    <h1>Open gaps</h1>
+    <div class="sub">{{ gaps|length }} requirements with no satisfying control.</div>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Clause</th><th>Requirement</th><th>Obligation</th><th>Standard</th></tr>
+    </thead>
+    <tbody>
+    {% for g in gaps %}
+      <tr>
+        <td class="mono">{{ g.clause_ref or '—' }}</td>
+        <td><a href="/compliance/requirements/{{ g.id }}"><strong>{{ g.title or g.requirement_name }}</strong></a></td>
+        <td>{{ badge(g.obligation_level) }}</td>
+        <td>{% if g.standard_object_id %}<a href="/compliance/standards/{{ g.standard_object_id }}">{{ g.standard_name or g.standard_object_id }}</a>{% else %}{{ g.standard_name or '—' }}{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="empty">No open gaps — every requirement is covered.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

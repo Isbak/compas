@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "macros.html" import stat_card %}
+{% block title %}Compliance{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Compliance &amp; Standards</h1>
+    <div class="sub">Coverage of ingested standards by approved controls, with open gaps.</div>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-primary" hx-post="/compliance/assess"
+            hx-target="#assess-status" hx-swap="innerHTML">Run assessment</button>
+    <span id="assess-status"></span>
+  </div>
+</div>
+
+<div class="grid cards">
+  {{ stat_card('Overall coverage', (data.overall | pct), '§') }}
+  {{ stat_card('Standards', data.standard_count, '▣') }}
+  {{ stat_card('Requirements', data.requirement_count, '☑') }}
+  {{ stat_card('Equations', data.equation_count, '∑') }}
+</div>
+
+<div class="detail-grid">
+  <div class="detail-main">
+    <div class="card">
+      <h3>Coverage by standard</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Standard</th><th>Satisfied</th><th>Partial</th>
+                <th>Total</th><th>Coverage</th></tr>
+          </thead>
+          <tbody>
+          {% for s in data.coverage %}
+            <tr>
+              <td><a href="/compliance/standards/{{ s.standard_object_id }}"><strong>{{ s.standard_name or s.standard_object_id }}</strong></a></td>
+              <td class="num">{{ s.satisfied }}</td>
+              <td class="num">{{ s.partial }}</td>
+              <td class="num">{{ s.total }}</td>
+              <td>
+                <div class="flex items-center gap" title="{{ s.coverage | pct }}">
+                  <div class="bar q" style="width:90px"><i style="width:{{ s.coverage | pct }}"></i></div>
+                  <span class="num faint">{{ s.coverage | pct }}</span>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="empty">No coverage data yet. Run an assessment.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <aside class="detail-main">
+    <div class="card">
+      <h3>Open gaps <span class="faint">({{ data.gaps|length }})</span></h3>
+      {% for g in data.gaps[:12] %}
+      <div class="flex between items-center" style="padding:6px 0;border-bottom:1px solid var(--border-soft)">
+        <a href="/compliance/requirements/{{ g.id }}">{{ g.clause_ref }} {{ g.title or g.requirement_name }}</a>
+        <span class="faint">{{ g.standard_name }}</span>
+      </div>
+      {% else %}<div class="empty">No open gaps.</div>{% endfor %}
+      {% if data.gaps|length > 12 %}<div class="faint mt"><a href="/compliance/gaps">View all {{ data.gaps|length }} gaps →</a></div>{% endif %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

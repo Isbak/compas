@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Equations{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/compliance">Compliance</a> / Equations</div>
+    <h1>Equations</h1>
+    <div class="sub">{{ page_obj.total }} machine-readable formulas extracted from standards.</div>
+  </div>
+</div>
+
+<form class="filters" hx-get="/compliance/equations" hx-target="#equations-table"
+      hx-trigger="change, submit" hx-push-url="true">
+  <select name="standard">
+    <option value="">All standards</option>
+    {% for s in filters.standards %}<option value="{{ s.id }}" {{ 'selected' if active.standard==s.id }}>{{ s.name }}</option>{% endfor %}
+  </select>
+</form>
+
+<div id="equations-table">{% include "partials/equations_table.html" %}</div>
+{% endblock %}

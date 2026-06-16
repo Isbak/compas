@@ -1,0 +1,30 @@
+{% from "macros.html" import badge, pagination %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Clause</th><th>Requirement</th><th>Obligation</th>
+          <th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for r in page_obj.items %}
+      <tr>
+        <td class="mono">{{ r.clause_ref or '—' }}</td>
+        <td><a href="/compliance/requirements/{{ r.id }}"><strong>{{ r.title or r.name }}</strong></a></td>
+        <td>{{ badge(r.obligation_level) }}</td>
+        <td><span id="rev-{{ r.id }}">{{ badge(r.status) }}</span></td>
+        <td>
+          <div class="btn-group">
+            <a class="btn btn-sm" href="/compliance/requirements/{{ r.id }}">Open</a>
+            <button class="btn btn-sm btn-success" title="Approve"
+                    hx-post="/compliance/requirements/{{ r.id }}/review"
+                    hx-vals='{"action":"approve"}' hx-target="#rev-{{ r.id }}" hx-swap="innerHTML">✓</button>
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="empty">No requirements match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {{ pagination(page_obj, '#requirements-table', '/compliance/requirements', active) }}
+</div>

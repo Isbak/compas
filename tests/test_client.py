@@ -96,10 +96,39 @@ def test_action_allowlist_rejects_unknown():
         lambda: client.artifact_action("a-1", "delete"),
         lambda: client.knowledge_action("ko-1", "drop"),
         lambda: client.relationship_action(1, "archive"),
+        lambda: client.assessment_action(1, "archive"),
     ):
         with pytest.raises(NavigateError) as exc:
             call()
         assert exc.value.status == 400
+
+
+def test_compliance_equations_url_and_filter():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"items": [], "limit": 50, "offset": 0,
+                                         "total": 0})
+
+    client = _make_client(handler)
+    client.list_compliance_equations(limit=50, offset=0, standard="std-ec2")
+    assert "/api/compliance/equations" in seen["url"]
+    assert "standard=std-ec2" in seen["url"]
+
+
+def test_assessment_action_path():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["method"] = request.method
+        return httpx.Response(200, json={"id": 1, "status": "ok", "message": "y"})
+
+    client = _make_client(handler)
+    client.assessment_action(1, "approve")
+    assert seen["path"] == "/api/compliance/assessments/1/approve"
+    assert seen["method"] == "POST"
 
 
 def test_bearer_auth_header():

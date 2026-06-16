@@ -45,6 +45,10 @@ a:hover { text-decoration: underline; }
 h1, h2, h3, h4 { margin: 0 0 .4em; font-weight: 600; letter-spacing: -0.01em; }
 h1 { font-size: 1.5rem; } h2 { font-size: 1.15rem; } h3 { font-size: 1rem; }
 code, .mono { font-family: var(--mono); font-size: .85em; }
+.code-block { font-family: var(--mono); font-size: .82rem; line-height: 1.5;
+  background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); padding: 12px 14px; margin: 0;
+  overflow-x: auto; white-space: pre; color: var(--text); }
 .muted { color: var(--text-dim); }
 .faint { color: var(--text-faint); }
 .busy-bar { display: none; }

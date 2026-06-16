@@ -75,6 +75,69 @@ ALERTS = [
      "status": "OPEN", "created_at": "2026-05-08T00:00:00"},
 ]
 
+# --- Compliance & standards ------------------------------------------------ #
+STANDARDS = [
+    {"object_id": "std-ec2", "name": "Eurocode 2", "authority": "CEN",
+     "version": "2004", "jurisdiction": "EU", "status": "APPROVED"},
+    {"object_id": "std-iso27001", "name": "ISO 27001", "authority": "ISO",
+     "version": "2022", "jurisdiction": "Global", "status": "PROPOSED"},
+]
+
+REQUIREMENTS = [
+    {"object_id": "req-ec2-bend", "name": "Bending resistance",
+     "standard_object_id": "std-ec2", "clause_ref": "6.1",
+     "title": "Design bending resistance", "requirement_text": "Members shall…",
+     "obligation_level": "MUST", "status": "APPROVED"},
+    {"object_id": "req-iso-a8", "name": "Access control",
+     "standard_object_id": "std-iso27001", "clause_ref": "A.8",
+     "title": "Access control policy", "requirement_text": "An access policy…",
+     "obligation_level": "SHOULD", "status": "PROPOSED"},
+]
+
+EQUATIONS = [
+    {"object_id": "eq-mrd", "name": "M_Rd", "standard_object_id": "std-ec2",
+     "requirement_object_id": "req-ec2-bend", "clause_ref": "6.1",
+     "symbol": "M_Rd", "title": "Design bending moment resistance",
+     "expression": "A_s * f_yd * z", "python_code": "def M_Rd(A_s, f_yd, z):\n    return A_s * f_yd * z",
+     "ast_json": "{\"type\": \"BinOp\", \"op\": \"Mult\"}",
+     "variables": [{"symbol": "A_s", "description": "Area of steel", "unit": "mm^2"},
+                   {"symbol": "f_yd", "description": "Design yield strength", "unit": "MPa"},
+                   {"symbol": "z", "description": "Lever arm", "unit": "mm"}],
+     "latex": "M_{Rd} = A_s f_{yd} z", "valid": True, "validation_note": "",
+     "status": "PROPOSED"},
+    {"object_id": "eq-bad", "name": "Broken", "standard_object_id": "std-ec2",
+     "requirement_object_id": "req-ec2-bend", "clause_ref": "6.2", "symbol": "x",
+     "title": "Invalid formula", "expression": "__import__('os')",
+     "python_code": "", "ast_json": "", "variables": [], "latex": "",
+     "valid": False, "validation_note": "imports are not allowed",
+     "status": "PROPOSED"},
+]
+
+COVERAGE = {
+    "overall": 0.5,
+    "standards": [
+        {"standard_object_id": "std-ec2", "standard_name": "Eurocode 2",
+         "total": 2, "satisfied": 1, "partial": 1, "coverage": 0.75},
+        {"standard_object_id": "std-iso27001", "standard_name": "ISO 27001",
+         "total": 1, "satisfied": 0, "partial": 0, "coverage": 0.0},
+    ],
+}
+
+GAPS = [
+    {"object_id": "req-iso-a8", "requirement_name": "Access control",
+     "clause_ref": "A.8", "title": "Access control policy",
+     "obligation_level": "SHOULD", "standard_object_id": "std-iso27001",
+     "standard_name": "ISO 27001"},
+]
+
+ASSESSMENTS = [
+    {"id": 1, "requirement_object_id": "req-ec2-bend",
+     "requirement_name": "Bending resistance", "control_object_id": "ko-relgov",
+     "control_name": "Release Governance", "status": "SATISFIED",
+     "review_status": "PROPOSED", "assessed_against_version": "2004",
+     "rationale": "Control covers the clause."},
+]
+
 
 def _evidence_for(oid: str) -> list[dict]:
     n = 17 if oid == "ko-relgov" else 3
@@ -344,6 +407,69 @@ class FakeNavigateClient:
 
     def top_targets(self, *, limit=20):
         return [{"url": "https://x", "count": 3}]
+
+    # compliance & standards
+    def list_compliance_standards(self):
+        self._maybe_fail()
+        return STANDARDS
+
+    def get_compliance_standard(self, object_id):
+        self._maybe_fail()
+        return next((s for s in STANDARDS if s["object_id"] == object_id), None)
+
+    def list_compliance_requirements(self, *, limit, offset, standard=None):
+        self._maybe_fail()
+        items = REQUIREMENTS
+        if standard:
+            items = [r for r in items if r["standard_object_id"] == standard]
+        return _paginate(items, limit, offset)
+
+    def get_compliance_requirement(self, object_id):
+        self._maybe_fail()
+        return next((r for r in REQUIREMENTS if r["object_id"] == object_id), None)
+
+    def list_compliance_equations(self, *, limit, offset, standard=None):
+        self._maybe_fail()
+        items = EQUATIONS
+        if standard:
+            items = [e for e in items if e["standard_object_id"] == standard]
+        return _paginate(items, limit, offset)
+
+    def get_compliance_equation(self, object_id):
+        self._maybe_fail()
+        return next((e for e in EQUATIONS if e["object_id"] == object_id), None)
+
+    def compliance_coverage(self):
+        self._maybe_fail()
+        return COVERAGE
+
+    def compliance_gaps(self):
+        self._maybe_fail()
+        return GAPS
+
+    def compliance_assessments(self, *, status=None):
+        self._maybe_fail()
+        items = ASSESSMENTS
+        if status:
+            items = [a for a in items if a["status"] == status]
+        return items
+
+    def compliance_prove(self, requirement):
+        self._maybe_fail()
+        rel = [a for a in ASSESSMENTS if a["requirement_object_id"] == requirement]
+        return {"found": bool(rel), "proven": any(a["status"] == "SATISFIED" for a in rel),
+                "term": requirement, "message": "", "requirement": {},
+                "assessments": rel}
+
+    def assessment_action(self, assessment_id, action):
+        self._maybe_fail()
+        self.actions.append((assessment_id, action))
+        return {"id": assessment_id, "status": "ok", "message": "done"}
+
+    def compliance_assess(self):
+        self._maybe_fail()
+        self.actions.append(("assess", "assess"))
+        return {"id": 77, "job_type": "assess", "status": "queued"}
 
 
 @pytest.fixture()

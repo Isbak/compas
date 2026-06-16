@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Requirements{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/compliance">Compliance</a> / Requirements</div>
+    <h1>Requirements</h1>
+    <div class="sub">{{ page_obj.total }} clauses extracted from ingested standards.</div>
+  </div>
+</div>
+
+<form class="filters" hx-get="/compliance/requirements" hx-target="#requirements-table"
+      hx-trigger="change, submit" hx-push-url="true">
+  <select name="standard">
+    <option value="">All standards</option>
+    {% for s in filters.standards %}<option value="{{ s.id }}" {{ 'selected' if active.standard==s.id }}>{{ s.name }}</option>{% endfor %}
+  </select>
+</form>
+
+<div id="requirements-table">{% include "partials/requirements_table.html" %}</div>
+{% endblock %}

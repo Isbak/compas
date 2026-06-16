@@ -350,6 +350,234 @@ def list_evidence(client: NavigateClient, *, page=1, page_size=None,
 
 
 # --------------------------------------------------------------------------- #
+# Compliance & standards
+#
+# Navigate's /compliance/* layer ingests standards (Eurocodes, ISO, GDPR…) as
+# Standard/Requirement knowledge objects, extracts machine-readable Equations,
+# and tracks coverage, gaps and assessment records. Standards, Requirements and
+# Equations are knowledge objects, so their approve/reject/archive reuses the
+# existing /knowledge-objects action (``review_object``); only Assessments use
+# the dedicated /compliance/assessments action.
+# --------------------------------------------------------------------------- #
+def compliance_home(client: NavigateClient) -> dict:
+    coverage = _safe(client.compliance_coverage) or {"overall": None,
+                                                     "standards": []}
+    gaps = [_gap_row(g) for g in (_safe(client.compliance_gaps) or [])]
+    standards = _safe(client.list_compliance_standards) or []
+    reqs = _safe(lambda: client.list_compliance_requirements(limit=1, offset=0))\
+        or {}
+    eqs = _safe(lambda: client.list_compliance_equations(limit=1, offset=0)) or {}
+    return {
+        "overall": coverage.get("overall"),
+        "coverage": [{
+            "standard_object_id": s.get("standard_object_id"),
+            "standard_name": s.get("standard_name"),
+            "total": s.get("total", 0), "satisfied": s.get("satisfied", 0),
+            "partial": s.get("partial", 0), "coverage": s.get("coverage"),
+        } for s in coverage.get("standards", [])],
+        "gaps": gaps,
+        "standard_count": len(standards),
+        "requirement_count": reqs.get("total", 0),
+        "equation_count": eqs.get("total", 0),
+    }
+
+
+def _standard_row(s: dict) -> dict:
+    return {
+        "id": s.get("object_id"), "name": s.get("name"),
+        "authority": s.get("authority"), "version": s.get("version"),
+        "jurisdiction": s.get("jurisdiction"), "status": s.get("status"),
+    }
+
+
+def list_standards(client: NavigateClient) -> list[dict]:
+    return [_standard_row(s) for s in (client.list_compliance_standards() or [])]
+
+
+def get_standard(client: NavigateClient, object_id: str) -> dict | None:
+    std = client.get_compliance_standard(object_id)
+    if not std:
+        return None
+    reqs = _safe(lambda: client.list_compliance_requirements(
+        limit=get_settings().max_page_size, offset=0, standard=object_id)) or {}
+    eqs = _safe(lambda: client.list_compliance_equations(
+        limit=get_settings().max_page_size, offset=0, standard=object_id)) or {}
+    return {
+        **_standard_row(std),
+        "requirements": [_requirement_row(r) for r in reqs.get("items", [])],
+        "equations": [_equation_row(e) for e in eqs.get("items", [])],
+    }
+
+
+def _requirement_row(r: dict) -> dict:
+    return {
+        "id": r.get("object_id"), "name": r.get("name"),
+        "standard_object_id": r.get("standard_object_id"),
+        "clause_ref": r.get("clause_ref"), "title": r.get("title"),
+        "requirement_text": r.get("requirement_text"),
+        "obligation_level": r.get("obligation_level"), "status": r.get("status"),
+    }
+
+
+def list_requirements(client: NavigateClient, *, page=1, page_size=None,
+                      standard=None) -> Page:
+    size, offset = _limits(page, page_size)
+    env = client.list_compliance_requirements(limit=size, offset=offset,
+                                              standard=standard)
+    items = [_requirement_row(r) for r in env.get("items", [])]
+    return _page(env, items, page, size)
+
+
+def get_requirement(client: NavigateClient, object_id: str) -> dict | None:
+    req = client.get_compliance_requirement(object_id)
+    if not req:
+        return None
+    std_id = req.get("standard_object_id")
+    # Equations are filtered by standard only; narrow to this requirement.
+    eqs_env = _safe(lambda: client.list_compliance_equations(
+        limit=get_settings().max_page_size, offset=0, standard=std_id)) or {}
+    equations = [_equation_row(e) for e in eqs_env.get("items", [])
+                 if e.get("requirement_object_id") == object_id]
+    proof = _safe(lambda: client.compliance_prove(object_id)) or {}
+    evidence = (_safe(lambda: client.knowledge_evidence(object_id)) or {})\
+        .get("items", [])
+    return {
+        **_requirement_row(req),
+        "standard_name": _standard_name(client, std_id),
+        "equations": equations,
+        "proof": {
+            "found": proof.get("found", False),
+            "proven": proof.get("proven", False),
+            "message": proof.get("message"),
+            "assessments": proof.get("assessments", []),
+        },
+        "evidence": [_evidence_row(e) for e in evidence],
+        "evidence_count": len(evidence),
+    }
+
+
+def _equation_row(e: dict) -> dict:
+    return {
+        "id": e.get("object_id"), "name": e.get("name"),
+        "symbol": e.get("symbol"), "title": e.get("title"),
+        "standard_object_id": e.get("standard_object_id"),
+        "requirement_object_id": e.get("requirement_object_id"),
+        "clause_ref": e.get("clause_ref"), "expression": e.get("expression"),
+        "valid": e.get("valid"), "status": e.get("status"),
+    }
+
+
+def list_equations(client: NavigateClient, *, page=1, page_size=None,
+                   standard=None) -> Page:
+    size, offset = _limits(page, page_size)
+    env = client.list_compliance_equations(limit=size, offset=offset,
+                                           standard=standard)
+    items = [_equation_row(e) for e in env.get("items", [])]
+    return _page(env, items, page, size)
+
+
+def get_equation(client: NavigateClient, object_id: str) -> dict | None:
+    eq = client.get_compliance_equation(object_id)
+    if not eq:
+        return None
+    std_id = eq.get("standard_object_id")
+    req_id = eq.get("requirement_object_id")
+    req = _safe(lambda: client.get_compliance_requirement(req_id)) if req_id else None
+    evidence = (_safe(lambda: client.knowledge_evidence(object_id)) or {})\
+        .get("items", [])
+    return {
+        **_equation_row(eq),
+        "standard_name": _standard_name(client, std_id),
+        "requirement_name": (req or {}).get("name") or req_id,
+        "python_code": eq.get("python_code"),
+        "ast_pretty": _pretty_json(eq.get("ast_json")),
+        "latex": eq.get("latex"),
+        "validation_note": eq.get("validation_note"),
+        "variables": [{
+            "symbol": v.get("symbol"), "description": v.get("description"),
+            "unit": v.get("unit"),
+        } for v in (eq.get("variables") or [])],
+        "evidence": [_evidence_row(e) for e in evidence],
+        "evidence_count": len(evidence),
+    }
+
+
+def _gap_row(g: dict) -> dict:
+    return {
+        "id": g.get("object_id"), "requirement_name": g.get("requirement_name"),
+        "clause_ref": g.get("clause_ref"), "title": g.get("title"),
+        "obligation_level": g.get("obligation_level"),
+        "standard_object_id": g.get("standard_object_id"),
+        "standard_name": g.get("standard_name"),
+    }
+
+
+def list_gaps(client: NavigateClient) -> list[dict]:
+    return [_gap_row(g) for g in (client.compliance_gaps() or [])]
+
+
+def _assessment_row(a: dict) -> dict:
+    return {
+        "id": a.get("id"),
+        "requirement_object_id": a.get("requirement_object_id"),
+        "requirement_name": a.get("requirement_name"),
+        "control_object_id": a.get("control_object_id"),
+        "control_name": a.get("control_name"), "status": a.get("status"),
+        "review_status": a.get("review_status"),
+        "assessed_against_version": a.get("assessed_against_version"),
+        "rationale": a.get("rationale"),
+    }
+
+
+def list_assessments(client: NavigateClient, *, status=None) -> list[dict]:
+    return [_assessment_row(a)
+            for a in (client.compliance_assessments(status=status) or [])]
+
+
+def compliance_filter_options(client: NavigateClient) -> dict:
+    return {
+        "standards": [{"id": s["id"], "name": s["name"]}
+                      for s in (_safe(lambda: list_standards(client)) or [])],
+        "obligation_levels": ["MUST", "SHOULD", "MAY"],
+        "statuses": ["PROPOSED", "REVIEWED", "APPROVED", "REJECTED"],
+        "assessment_statuses": ["SATISFIED", "PARTIAL", "GAP",
+                                "NOT_APPLICABLE"],
+    }
+
+
+def review_assessment(client: NavigateClient, assessment_id: int,
+                      action: str) -> bool:
+    act = {"approve": "approve", "reject": "reject"}.get(action.lower())
+    if not act:
+        return False
+    client.assessment_action(assessment_id, act)
+    return True
+
+
+def run_assessment(client: NavigateClient) -> dict:
+    return client.compliance_assess()
+
+
+def _standard_name(client: NavigateClient, std_id: str | None) -> str | None:
+    """Resolve a standard's display name, falling back to its id."""
+    if not std_id:
+        return None
+    std = _safe(lambda: client.get_compliance_standard(std_id))
+    return (std or {}).get("name") or std_id
+
+
+def _pretty_json(value) -> str | None:
+    """Pretty-print a JSON string (equation AST) for display, else pass through."""
+    if not value:
+        return None
+    import json
+    try:
+        return json.dumps(json.loads(value), indent=2)
+    except (ValueError, TypeError):
+        return str(value)
+
+
+# --------------------------------------------------------------------------- #
 # Domains (derived; Navigate has no domains resource)
 # --------------------------------------------------------------------------- #
 def domain_overview(client: NavigateClient) -> list[dict]:

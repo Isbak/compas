@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Assessments{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/compliance">Compliance</a> / Assessments</div>
+    <h1>Assessments</h1>
+    <div class="sub">{{ assessments|length }} control-to-requirement assessment records.</div>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-primary" hx-post="/compliance/assess"
+            hx-target="#assess-status" hx-swap="innerHTML">Run assessment</button>
+    <span id="assess-status"></span>
+  </div>
+</div>
+
+<form class="filters" hx-get="/compliance/assessments" hx-target="#assessments-table"
+      hx-trigger="change, submit" hx-push-url="true">
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for s in filters.assessment_statuses %}<option value="{{ s }}" {{ 'selected' if active.status==s }}>{{ s }}</option>{% endfor %}
+  </select>
+</form>
+
+<div id="assessments-table">{% include "partials/assessments_table.html" %}</div>
+{% endblock %}

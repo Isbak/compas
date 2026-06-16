@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Standards{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="faint"><a href="/compliance">Compliance</a> / Standards</div>
+    <h1>Standards</h1>
+    <div class="sub">{{ standards|length }} ingested standards and regulations.</div>
+  </div>
+</div>
+
+<div id="standards-table">{% include "partials/standards_table.html" %}</div>
+{% endblock %}
