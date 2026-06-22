@@ -1,0 +1,28 @@
+{# Recent change-log entries (Navigate /governance/changes). #}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>When</th><th>Change</th><th>Target</th><th>Field</th><th>From → To</th></tr></thead>
+    <tbody>
+    {% for c in changes %}
+      <tr>
+        <td class="faint" title="{{ c.detected_at }}">{{ c.detected_at|timeago if c.detected_at else '—' }}</td>
+        <td><span class="badge badge-info">{{ (c.change_type or '')|replace('_',' ')|title }}</span></td>
+        <td>
+          {% if c.target_kind == 'knowledge_object' and c.object_id %}
+            <a href="/knowledge/{{ c.object_id }}">{{ c.object_name }}</a>
+          {% else %}{{ c.object_name or c.object_id or (c.target_kind or '')|replace('_',' ')|title }}{% endif %}
+        </td>
+        <td class="muted">{{ c.field or '—' }}</td>
+        <td class="faint">
+          {% if c.old_value is not none or c.new_value is not none %}
+            <span title="{{ c.old_value }}">{{ (c.old_value or '∅')|string|truncate(24, true) }}</span>
+            → <span title="{{ c.new_value }}">{{ (c.new_value or '∅')|string|truncate(24, true) }}</span>
+          {% else %}{{ (c.detail or '')|truncate(48, true) or '—' }}{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="empty">No recent changes.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>

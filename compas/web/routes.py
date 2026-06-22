@@ -221,7 +221,8 @@ def relationship_review(
         return HTMLResponse(
             f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
             status_code=502)
-    status = {"approve": "APPROVED", "reject": "REJECTED"}[action]
+    status = {"approve": "APPROVED", "reject": "REJECTED",
+              "archive": "ARCHIVED"}[action]
     return HTMLResponse(
         f'<span class="badge badge-{status.lower()}">{status.title()}</span>')
 
@@ -457,6 +458,61 @@ def governance(request: Request, client: NavigateClient = Depends(get_client)):
     except NavigateError as exc:
         return _error_page(request, exc)
     return render("pages/governance.html", ctx)
+
+
+#: Resources that support Navigate's confidence-banded bulk approval.
+BULK_APPROVE_KINDS = frozenset({"knowledge", "relationships"})
+
+
+@router.get("/governance/changes", response_class=HTMLResponse)
+def governance_changes(
+    request: Request, client: NavigateClient = Depends(get_client)
+):
+    """Lazy-loaded recent change-log panel (HTMX fragment)."""
+    try:
+        changes = service.recent_changes(client)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    return render("partials/changes_table.html",
+                  _ctx(request, changes=changes))
+
+
+@router.get("/governance/growth", response_class=HTMLResponse)
+def governance_growth(
+    request: Request, client: NavigateClient = Depends(get_client)
+):
+    """Lazy-loaded growth-trend panel (HTMX fragment)."""
+    try:
+        growth = service.growth_trend(client)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    return render("partials/growth.html", _ctx(request, growth=growth))
+
+
+@router.post("/governance/approve-confidence/{kind}",
+             response_class=HTMLResponse)
+def governance_bulk_approve(
+    request: Request, kind: str, min_confidence: float = Form(...),
+    max_confidence: float = Form(1.0), include_reviewed: bool = Form(False),
+    client: NavigateClient = Depends(get_client),
+):
+    if kind not in BULK_APPROVE_KINDS:
+        return HTMLResponse("Unknown resource", status_code=400)
+    lo = _clamp_confidence(min_confidence)
+    hi = _clamp_confidence(max_confidence)
+    try:
+        result = service.bulk_approve_confidence(
+            client, kind=kind, min_confidence=lo, max_confidence=hi,
+            include_reviewed=include_reviewed)
+    except NavigateError as exc:
+        return HTMLResponse(
+            f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
+            status_code=502)
+    count = (result or {}).get(
+        "objects_approved" if kind == "knowledge" else "relationships_approved", 0)
+    return HTMLResponse(
+        f'<span class="badge badge-approved">Approved {count} '
+        f'{"objects" if kind == "knowledge" else "relationships"}</span>')
 
 
 # --------------------------------------------------------------------------- #

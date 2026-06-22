@@ -2,8 +2,8 @@
 
 Turns Navigate API responses (:mod:`compas.navigate_client`) into the shapes
 the templates render. No database, no business logic re-implemented — just
-fetching, light shaping, and graceful degradation where Navigate's API doesn't
-expose a datum (domains list, growth trend, change log, per-row counts).
+fetching, light shaping, and graceful degradation where an older Navigate
+doesn't expose a datum (e.g. the domains resource on a pre-upgrade server).
 """
 
 from __future__ import annotations
@@ -89,6 +89,7 @@ def dashboard(client: NavigateClient) -> dict:
         "stale_knowledge": stats.get("stale_object_count", 0),
         "quality_score": round(quality, 1) if quality is not None else 0.0,
         "approved_pct": round(100 * approved / total_objs, 1) if total_objs else 0.0,
+        "last_scan": stats.get("last_scan"),
     }
 
 
@@ -192,6 +193,10 @@ def _knowledge_row(o: dict) -> dict:
         "review_status": o.get("review_status"),
         "freshness_state": o.get("freshness_state"),
         "quality_score": o.get("quality_score"),
+        # Per-row counts (Navigate now includes these in the list response).
+        "relationship_count": o.get("relationship_count"),
+        "evidence_count": o.get("evidence_count"),
+        "mention_count": o.get("mention_count"),
     }
 
 
@@ -319,7 +324,8 @@ def relationship_filter_options(client: NavigateClient) -> dict:
 
 
 def review_relationship(client: NavigateClient, rel_id: int, action: str) -> bool:
-    act = {"approve": "approve", "reject": "reject"}.get(action.lower())
+    act = {"approve": "approve", "reject": "reject",
+           "archive": "archive"}.get(action.lower())
     if not act:
         return False
     client.relationship_action(rel_id, act)
@@ -578,13 +584,30 @@ def _pretty_json(value) -> str | None:
 
 
 # --------------------------------------------------------------------------- #
-# Domains (derived; Navigate has no domains resource)
+# Domains (Navigate's /governance/domains resource)
 # --------------------------------------------------------------------------- #
+def _domain_row(d: dict) -> dict:
+    return {
+        "domain": d.get("domain") or d.get("name"),
+        "objects": d.get("object_count", 0),
+        "owner": d.get("owner"),
+        "review_backlog": d.get("review_backlog", 0),
+        "quality": d.get("avg_quality"),
+        "freshness": d.get("avg_freshness"),
+    }
+
+
 def domain_overview(client: NavigateClient) -> list[dict]:
-    try:
-        dash = client.gov_dashboard() or {}
-    except Exception:
-        dash = {}
+    domains = _safe(client.gov_domains)
+    if domains is None:
+        # Older Navigate without the domains resource: derive from the
+        # governance dashboard so the UI degrades gracefully.
+        return _domains_from_dashboard(client)
+    return [_domain_row(d) for d in domains if isinstance(d, dict)]
+
+
+def _domains_from_dashboard(client: NavigateClient) -> list[dict]:
+    dash = _safe(client.gov_dashboard) or {}
     domains = dash.get("domains") or dash.get("by_domain") or []
     out = []
     for d in domains:
@@ -592,21 +615,28 @@ def domain_overview(client: NavigateClient) -> list[dict]:
             out.append({
                 "domain": d.get("domain") or d.get("name"),
                 "objects": d.get("objects") or d.get("count") or d.get("object_count", 0),
-                "documents": d.get("documents", 0),
+                "owner": d.get("owner"), "review_backlog": d.get("review_backlog", 0),
                 "quality": d.get("quality"), "freshness": d.get("freshness"),
             })
         else:
-            out.append({"domain": str(d), "objects": 0, "documents": 0,
-                        "quality": None, "freshness": None})
+            out.append({"domain": str(d), "objects": 0, "owner": None,
+                        "review_backlog": 0, "quality": None, "freshness": None})
     return out
 
 
 def get_domain(client: NavigateClient, domain: str) -> dict:
+    health = _safe(lambda: client.gov_domain(domain)) or {}
     page = list_knowledge(client, domain=domain, page_size=200)
+    owners = {i["owner"] for i in page.items if i.get("owner")}
+    if health.get("owner"):
+        owners.add(health["owner"])
     return {
-        "domain": domain, "object_count": page.total,
-        "relationship_count": None, "quality": None, "freshness": None,
-        "owners": sorted({i["owner"] for i in page.items if i.get("owner")}),
+        "domain": domain,
+        "object_count": health.get("object_count", page.total),
+        "review_backlog": health.get("review_backlog"),
+        "quality": health.get("avg_quality"),
+        "freshness": health.get("avg_freshness"),
+        "owners": sorted(owners),
         "objects": [{
             "id": o["id"], "name": o["name"], "type": o["type"],
             "status": o["status"], "quality_score": o["quality_score"],
@@ -655,6 +685,62 @@ def governance_center(client: NavigateClient) -> dict:
         "orphaned": by_type.get("ORPHANED", []),
         "duplicate_candidates": by_type.get("DUPLICATE_CANDIDATE", []),
     }
+
+
+def recent_changes(client: NavigateClient, *, limit: int = 20,
+                   index: dict | None = None) -> list[dict]:
+    """Recent change-log entries from Navigate's /governance/changes feed.
+
+    ``index`` (id → {name, type}) can be passed in by a caller that already
+    built one this request, to avoid a second full knowledge-object fetch.
+    """
+    env = _safe(lambda: client.gov_changes(limit=limit, offset=0))
+    if env is None:
+        return []
+    if index is None:
+        index = _objects_index(client)
+    rows = []
+    for c in env.get("items", []):
+        oid = c.get("object_id")
+        rows.append({
+            "id": c.get("id"),
+            "change_type": c.get("change_type"),
+            "target_kind": c.get("target_kind"),
+            "object_id": oid,
+            "object_name": index.get(oid, {}).get("name") or oid,
+            "field": c.get("field"),
+            "old_value": c.get("old_value"),
+            "new_value": c.get("new_value"),
+            "detail": c.get("detail"),
+            "detected_at": c.get("detected_at"),
+        })
+    return rows
+
+
+def growth_trend(client: NavigateClient, *, interval: str = "month",
+                 limit: int = 12) -> dict:
+    """Knowledge-base growth over time from /governance/growth."""
+    data = _safe(lambda: client.gov_growth(interval=interval, limit=limit))
+    if not data:
+        return {"interval": interval, "points": []}
+    return {"interval": data.get("interval", interval),
+            "points": data.get("points", [])}
+
+
+def bulk_approve_confidence(client: NavigateClient, *, kind: str,
+                            min_confidence: float, max_confidence: float = 1.0,
+                            include_reviewed: bool = False,
+                            note: str | None = None) -> dict | None:
+    """Confidence-banded bulk approval of knowledge objects or relationships."""
+    if kind == "knowledge":
+        return client.knowledge_approve_confidence(
+            min_confidence=min_confidence, max_confidence=max_confidence,
+            include_reviewed=include_reviewed, note=note)
+    if kind == "relationships":
+        return client.relationships_approve_confidence(
+            min_confidence=min_confidence, max_confidence=max_confidence,
+            include_reviewed=include_reviewed, note=note)
+    return None
 
 
 def knowledge_health(client: NavigateClient) -> dict:

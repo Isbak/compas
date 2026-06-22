@@ -3,7 +3,8 @@
   <table>
     <thead>
       <tr><th>Name</th><th>Type</th><th>Confidence</th><th>Owner</th>
-          <th>Status</th><th>Review</th><th>Quality</th><th></th></tr>
+          <th>Status</th><th>Review</th><th>Quality</th>
+          <th title="Relationships · Evidence · Mentions">Links</th><th></th></tr>
     </thead>
     <tbody>
     {% for o in page_obj.items %}
@@ -15,6 +16,13 @@
         <td>{{ badge(o.status) }}</td>
         <td><span id="rev-{{ o.id }}">{{ badge(o.review_status) }}</span></td>
         <td>{{ quality(o.quality_score) }}</td>
+        <td class="num faint" title="Relationships · Evidence · Mentions">
+          {%- if o.relationship_count is not none or o.evidence_count is not none or o.mention_count is not none -%}
+          {{ o.relationship_count if o.relationship_count is not none else 0 }} ·
+          {{ o.evidence_count if o.evidence_count is not none else 0 }} ·
+          {{ o.mention_count if o.mention_count is not none else 0 }}
+          {%- else -%}—{%- endif -%}
+        </td>
         <td>
           <div class="btn-group">
             <a class="btn btn-sm" href="/knowledge/{{ o.id }}">Open</a>
@@ -24,7 +32,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="8" class="empty">No knowledge objects match these filters.</td></tr>
+      <tr><td colspan="9" class="empty">No knowledge objects match these filters.</td></tr>
     {% endfor %}
     </tbody>
   </table>

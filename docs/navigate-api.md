@@ -23,7 +23,7 @@ catalog api --host 127.0.0.1 --port 8000     # Swagger at /docs, schema at /open
 
 ### Base
 - `GET /health` → `HealthResponse { status, database, version }`
-- `GET /stats` → `StatsResponse { artifact_count, link_count, knowledge_object_count, relationship_count, evidence_count, pending_review_count, stale_object_count }`
+- `GET /stats` → `StatsResponse { artifact_count, link_count, knowledge_object_count, relationship_count, evidence_count, pending_review_count, stale_object_count, last_scan? }`
 
 ### Artifacts
 - `GET /artifacts` — filters: `file_type, scan_status, extraction_status, classification_status, search` → `Paginated[Artifact]`
@@ -41,18 +41,20 @@ catalog api --host 127.0.0.1 --port 8000     # Swagger at /docs, schema at /open
 
 ### Knowledge objects  (note: path is `/knowledge-objects`)
 - `GET /knowledge-objects` — filters: `object_type, status, review_status, owner, domain, min_confidence, search` → `Paginated[KnowledgeObject]`
+- `POST /knowledge-objects/approve-confidence` — body `ConfidenceApprovalRequest { min_confidence, max_confidence, include_reviewed, note }` → `ConfidenceApprovalResponse { min_confidence, max_confidence, objects_approved, relationships_approved, message }`
 - `GET /knowledge-objects/{object_id}` → `KnowledgeObject`
 - `GET /knowledge-objects/{object_id}/relationships` → `Paginated[Relationship]`
 - `GET /knowledge-objects/{object_id}/evidence` → `Paginated[Evidence]`
 - `GET /knowledge-objects/{object_id}/mentions` → `Paginated[Mention]`
 - `POST /knowledge-objects/{object_id}/approve|reject|archive` → `ActionResponse { id, status, message }`
 
-`KnowledgeObject { id, name, object_type, description?, canonical_name?, confidence?, status?, merge_confidence?, created_at?, updated_at?, review_status?, freshness_state?, quality_score?, owner? }`
+`KnowledgeObject { id, name, object_type, description?, canonical_name?, confidence?, status?, merge_confidence?, created_at?, updated_at?, review_status?, freshness_state?, quality_score?, owner?, relationship_count?, evidence_count?, mention_count? }`
 
 ### Relationships
 - `GET /relationships` — filters: `source_object_id, target_object_id, predicate, review_status, min_confidence` → `Paginated[Relationship]`
+- `POST /relationships/approve-confidence` — body `ConfidenceApprovalRequest` → `ConfidenceApprovalResponse`
 - `GET /relationships/{relationship_id}` → `Relationship`
-- `POST /relationships/{relationship_id}/approve|reject` → `ActionResponse`
+- `POST /relationships/{relationship_id}/approve|reject|archive` → `ActionResponse`
 
 `Relationship { id, source_object, predicate, target_object, confidence?, evidence?, review_status?, created_at?, updated_at? }`
 
@@ -80,6 +82,10 @@ catalog api --host 127.0.0.1 --port 8000     # Swagger at /docs, schema at /open
 - `GET /governance/orphaned` → `dict`
 - `GET /governance/alerts?alert_type=&severity=` → `[GovernanceAlert { id, alert_type, severity, object_id?, message?, status?, created_at?, resolved_at? }]`
 - `GET /governance/quality?ascending=false` → `QualityResponse { average_quality, items: [QualityItem{ object_id, canonical_name?, object_type?, quality_score?, evidence_count?, document_count? }] }`
+- `GET /governance/domains` → `[DomainHealth { domain, owner?, object_count, avg_quality?, avg_freshness?, review_backlog }]`
+- `GET /governance/domains/{name}` → `DomainHealth`
+- `GET /governance/changes` — filters: `object_id, change_type` → `Paginated[ChangeLogEntry { id, change_type, target_kind, object_id?, field?, old_value?, new_value?, detail?, detected_at }]`
+- `GET /governance/growth?interval=day|week|month&limit=12` → `GrowthTrend { interval, points: [GrowthPoint{ period, artifacts_added, artifacts_total, objects_added, objects_total, relationships_added, relationships_total }] }`
 
 ### GraphRAG
 - `POST /ask` — body `AskRequest { question, depth, show_context, show_evidence }` →
@@ -123,7 +129,15 @@ endpoints below.
 
 ## Gaps Compas works around
 
-The API does not (yet) expose: a distinct **domains** resource, a knowledge
-**growth trend**, a **change log / recent changes** feed, or per-row evidence/
-relationship **counts** in list responses. Compas degrades gracefully where a
-datum isn't available rather than inventing it.
+The previous gaps — a distinct **domains** resource, a knowledge **growth
+trend**, a **change-log / recent-changes** feed, and per-row **counts** in
+knowledge-object list responses — are now all served by the API
+(`/governance/domains`, `/governance/growth`, `/governance/changes`, and the
+`relationship_count`/`evidence_count`/`mention_count` fields). Compas still
+degrades gracefully against an older Navigate that predates them (e.g. domains
+fall back to a `/governance/dashboard` derivation).
+
+The one capability the API exposes only via the CLI (`catalog cost-report`) and
+MCP — the LLM **token-usage / cost ledger** (`llm_usage`) — has no REST
+endpoint, so Compas does not surface it. A `GET /cost/...` endpoint would let
+Compas add a cost dashboard.

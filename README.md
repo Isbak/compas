@@ -37,7 +37,7 @@ Navigate  (Filesystem → Scanner → SQLite → … → Fuseki → GraphRAG →
 | **Artifacts** | Filterable, paginated table (type / scan / extraction / classification) with detail (evidence, links) and re-scan/extract/classify actions that enqueue Navigate jobs |
 | **Knowledge Objects** | Filterable table (confidence, owner, status, review, quality) and a detail view with relationships (graph neighbours), evidence, source documents and inline approve/reject/archive |
 | **Relationships** | Subject–predicate–object triples (names resolved) with inline approve/reject |
-| **Domains** | Per-domain objects (derived from Navigate's governance dashboard) |
+| **Domains** | Per-domain health from Navigate's `/governance/domains` (objects, owner, quality, freshness, review backlog) |
 | **Governance** | Review queue, pending relationships, quality/drift/orphan/duplicate alerts, stale objects, knowledge-health metrics |
 | **Graph Explorer** | Vendored interactive SVG graph (zoom, pan, drag, expand, search, shortest path, view modes) backed by Navigate's `/graph/*` endpoints |
 | **GraphRAG** | Navigate's assistant (`/ask`) with answer, confidence band, knowledge objects, relationships and evidence used |
@@ -88,9 +88,10 @@ docs/navigate-api.md     # The Navigate REST contract Compas consumes
 
 Compas exposes **no** REST API and **no** `/openapi.json`; its only HTTP surface
 is the server-rendered UI (plus small `/graph/*` JSON helpers that feed its own
-graph explorer). Anything the Navigate API doesn't expose (a domains resource, a
-growth trend, a change-log feed, per-row counts) is degraded gracefully rather
-than invented — see the "Gaps" note in `docs/navigate-api.md`.
+graph explorer). Anything the Navigate API doesn't expose is degraded gracefully
+rather than invented — e.g. against an older Navigate without the
+`/governance/domains` resource, domains fall back to a dashboard derivation. See
+the "Gaps" note in `docs/navigate-api.md`.
 
 ## Tests
 

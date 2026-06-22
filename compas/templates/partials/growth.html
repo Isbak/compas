@@ -1,0 +1,23 @@
+{# Knowledge-base growth trend (Navigate /governance/growth). #}
+{% set points = growth.points %}
+{% if points %}
+{% set max_objs = (points|map(attribute='objects_total')|map('default', 0)|list|max) or 1 %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Period ({{ growth.interval }})</th><th>Objects</th><th>Relationships</th><th>Artifacts</th><th>Trend</th></tr></thead>
+    <tbody>
+    {% for p in points %}
+      <tr>
+        <td class="muted">{{ p.period }}</td>
+        <td class="num">{{ p.objects_total }} <span class="faint">(+{{ p.objects_added }})</span></td>
+        <td class="num">{{ p.relationships_total }} <span class="faint">(+{{ p.relationships_added }})</span></td>
+        <td class="num">{{ p.artifacts_total }} <span class="faint">(+{{ p.artifacts_added }})</span></td>
+        <td><div class="bar q" style="width:90px"><i style="width:{{ ((p.objects_total or 0) * 100 / max_objs)|round }}%"></i></div></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty">No growth data available.</div>
+{% endif %}

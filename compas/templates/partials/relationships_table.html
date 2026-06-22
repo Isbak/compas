@@ -18,6 +18,8 @@
                     hx-vals='{"action":"approve"}' hx-target="#rel-{{ r.id }}" hx-swap="innerHTML">✓</button>
             <button class="btn btn-sm btn-danger" hx-post="/relationships/{{ r.id }}/review"
                     hx-vals='{"action":"reject"}' hx-target="#rel-{{ r.id }}" hx-swap="innerHTML">✕</button>
+            <button class="btn btn-sm" title="Archive" hx-post="/relationships/{{ r.id }}/review"
+                    hx-vals='{"action":"archive"}' hx-target="#rel-{{ r.id }}" hx-swap="innerHTML">⌫</button>
             <a class="btn btn-sm" href="/graph?focus={{ r.source_id }}" title="Inspect">⧉</a>
           </div>
         </td>

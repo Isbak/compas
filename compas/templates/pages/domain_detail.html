@@ -7,8 +7,8 @@
 </div>
 <div class="grid cards mb">
   <div class="card stat"><div class="label">Knowledge Objects</div><div class="value num">{{ domain.object_count }}</div></div>
-  <div class="card stat"><div class="label">Relationships</div><div class="value num">{{ domain.relationship_count }}</div></div>
-  <div class="card stat"><div class="label">Quality</div><div class="value num">{{ domain.quality if domain.quality is not none else '—' }}</div></div>
+  <div class="card stat"><div class="label">Review Backlog</div><div class="value num">{{ domain.review_backlog if domain.review_backlog is not none else '—' }}</div></div>
+  <div class="card stat"><div class="label">Quality</div><div class="value num">{{ domain.quality|round(1) if domain.quality is not none else '—' }}</div></div>
   <div class="card stat"><div class="label">Freshness</div><div class="value num">{{ (domain.freshness ~ '%') if domain.freshness is not none else '—' }}</div></div>
 </div>
 {% if domain.owners %}

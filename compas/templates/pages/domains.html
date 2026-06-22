@@ -8,7 +8,8 @@
   <a class="card" href="/domains/{{ d.domain }}" style="text-decoration:none;color:inherit">
     <h3>{{ d.domain }}</h3>
     <div class="flex between mt"><span class="muted">Objects</span><strong class="num">{{ d.objects }}</strong></div>
-    <div class="flex between"><span class="muted">Documents</span><strong class="num">{{ d.documents }}</strong></div>
+    <div class="flex between"><span class="muted">Review backlog</span><strong class="num">{{ d.review_backlog if d.review_backlog is not none else '—' }}</strong></div>
+    {% if d.owner %}<div class="flex between"><span class="muted">Owner</span><span class="chip">{{ d.owner }}</span></div>{% endif %}
     <div class="flex between items-center mt"><span class="muted">Quality</span>{{ quality(d.quality) }}</div>
     <div class="flex between items-center"><span class="muted">Freshness</span>
       <span class="num">{{ (d.freshness ~ '%') if d.freshness is not none else '—' }}</span></div>

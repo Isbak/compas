@@ -147,6 +147,48 @@ def _evidence_for(oid: str) -> list[dict]:
              "created_at": "2026-05-01T00:00:00"} for i in range(n)]
 
 
+def _with_counts(o: dict | None) -> dict | None:
+    """Annotate an object with the per-row counts Navigate now returns."""
+    if o is None:
+        return None
+    rels = sum(1 for r in RELATIONSHIPS
+               if r["source_object"] == o["id"] or r["target_object"] == o["id"])
+    return {**o, "relationship_count": rels,
+            "evidence_count": len(_evidence_for(o["id"])), "mention_count": 1}
+
+
+CHANGES = [
+    {"id": 3, "change_type": "STATUS_CHANGE", "target_kind": "knowledge_object",
+     "object_id": "ko-sfdc", "field": "status", "old_value": "PROPOSED",
+     "new_value": "APPROVED", "detail": None, "detected_at": "2026-05-12T00:00:00"},
+    {"id": 2, "change_type": "NEW_OBJECT", "target_kind": "knowledge_object",
+     "object_id": "ko-risk", "field": None, "old_value": None,
+     "new_value": None, "detail": "Vendor Lock-in discovered",
+     "detected_at": "2026-05-11T00:00:00"},
+    {"id": 1, "change_type": "NEW_RELATIONSHIP", "target_kind": "relationship",
+     "object_id": None, "field": None, "old_value": None, "new_value": None,
+     "detail": "Salesforce affects Release Management",
+     "detected_at": "2026-05-10T00:00:00"},
+]
+
+DOMAINS = [
+    {"domain": "Test & Release", "owner": "Test & Release Team",
+     "object_count": 3, "avg_quality": 84.0, "avg_freshness": 70.0,
+     "review_backlog": 1},
+    {"domain": "Platform", "owner": None, "object_count": 2,
+     "avg_quality": 60.0, "avg_freshness": 40.0, "review_backlog": 2},
+]
+
+GROWTH = {"interval": "month", "points": [
+    {"period": "2026-03", "artifacts_added": 4, "artifacts_total": 8,
+     "objects_added": 2, "objects_total": 4, "relationships_added": 1,
+     "relationships_total": 2},
+    {"period": "2026-04", "artifacts_added": 4, "artifacts_total": 12,
+     "objects_added": 2, "objects_total": 6, "relationships_added": 2,
+     "relationships_total": 4},
+]}
+
+
 def _paginate(items, limit, offset):
     return {"items": items[offset:offset + limit], "limit": limit,
             "offset": offset, "total": len(items)}
@@ -176,7 +218,8 @@ class FakeNavigateClient:
         self._maybe_fail()
         return {"artifact_count": len(ARTIFACTS), "link_count": 5,
                 "knowledge_object_count": len(OBJECTS), "relationship_count": len(RELATIONSHIPS),
-                "evidence_count": 26, "pending_review_count": 2, "stale_object_count": 2}
+                "evidence_count": 26, "pending_review_count": 2, "stale_object_count": 2,
+                "last_scan": "2026-05-12T00:00:00"}
 
     # artifacts
     def list_artifacts(self, *, limit, offset, file_type=None, scan_status=None,
@@ -222,11 +265,21 @@ class FakeNavigateClient:
             items = [o for o in items if o["review_status"] == review_status]
         if search:
             items = [o for o in items if search.lower() in o["name"].lower()]
-        return _paginate(items, limit, offset)
+        return _paginate([_with_counts(o) for o in items], limit, offset)
 
     def get_knowledge(self, object_id):
         self._maybe_fail()
-        return next((o for o in OBJECTS if o["id"] == object_id), None)
+        return _with_counts(next((o for o in OBJECTS if o["id"] == object_id), None))
+
+    def knowledge_approve_confidence(self, *, min_confidence, max_confidence=1.0,
+                                     include_reviewed=False, note=None):
+        self._maybe_fail()
+        self.actions.append(("knowledge", "approve-confidence"))
+        approved = sum(1 for o in OBJECTS
+                       if (o.get("confidence") or 0) >= min_confidence)
+        return {"min_confidence": min_confidence, "max_confidence": max_confidence,
+                "objects_approved": approved, "relationships_approved": 0,
+                "message": "ok"}
 
     def knowledge_evidence(self, object_id, *, limit=200, offset=0):
         return _paginate(_evidence_for(object_id), limit, offset)
@@ -271,6 +324,16 @@ class FakeNavigateClient:
         self._maybe_fail()
         self.actions.append((relationship_id, action))
         return {"id": str(relationship_id), "status": "ok", "message": "done"}
+
+    def relationships_approve_confidence(self, *, min_confidence, max_confidence=1.0,
+                                         include_reviewed=False, note=None):
+        self._maybe_fail()
+        self.actions.append(("relationships", "approve-confidence"))
+        approved = sum(1 for r in RELATIONSHIPS
+                       if (r.get("confidence") or 0) >= min_confidence)
+        return {"min_confidence": min_confidence, "max_confidence": max_confidence,
+                "objects_approved": 0, "relationships_approved": approved,
+                "message": "ok"}
 
     # evidence
     def list_evidence(self, *, limit, offset, artifact_id=None,
@@ -375,6 +438,27 @@ class FakeNavigateClient:
                            "quality_score": o["quality_score"],
                            "evidence_count": 3, "document_count": 2}
                           for o in OBJECTS]}
+
+    def gov_domains(self):
+        self._maybe_fail()
+        return DOMAINS
+
+    def gov_domain(self, name):
+        self._maybe_fail()
+        return next((d for d in DOMAINS if d["domain"] == name), None)
+
+    def gov_changes(self, *, limit=20, offset=0, object_id=None, change_type=None):
+        self._maybe_fail()
+        items = CHANGES
+        if object_id:
+            items = [c for c in items if c["object_id"] == object_id]
+        if change_type:
+            items = [c for c in items if c["change_type"] == change_type]
+        return _paginate(items, limit, offset)
+
+    def gov_growth(self, *, interval="month", limit=12):
+        self._maybe_fail()
+        return GROWTH
 
     # graphrag
     def ask(self, question, *, depth=2, show_context=True, show_evidence=True):

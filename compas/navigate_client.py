@@ -23,7 +23,7 @@ from .config import Settings, get_settings
 #: behind the route-level checks.
 ARTIFACT_ACTIONS = frozenset({"rescan", "extract", "classify"})
 KNOWLEDGE_ACTIONS = frozenset({"approve", "reject", "archive"})
-RELATIONSHIP_ACTIONS = frozenset({"approve", "reject"})
+RELATIONSHIP_ACTIONS = frozenset({"approve", "reject", "archive"})
 ASSESSMENT_ACTIONS = frozenset({"approve", "reject"})
 
 
@@ -165,6 +165,14 @@ class NavigateClient:
                                 status=400)
         return self._post(f"/knowledge-objects/{_seg(object_id)}/{action}")
 
+    def knowledge_approve_confidence(self, *, min_confidence: float,
+                                     max_confidence: float = 1.0,
+                                     include_reviewed: bool = False,
+                                     note: str | None = None) -> dict:
+        return self._post("/knowledge-objects/approve-confidence", json={
+            "min_confidence": min_confidence, "max_confidence": max_confidence,
+            "include_reviewed": include_reviewed, "note": note})
+
     # -- relationships ---------------------------------------------------- #
     def list_relationships(self, *, limit: int, offset: int,
                            source_object_id: str | None = None,
@@ -186,6 +194,14 @@ class NavigateClient:
             raise NavigateError(f"Unsupported relationship action: {action!r}",
                                 status=400)
         return self._post(f"/relationships/{_seg(relationship_id)}/{action}")
+
+    def relationships_approve_confidence(self, *, min_confidence: float,
+                                         max_confidence: float = 1.0,
+                                         include_reviewed: bool = False,
+                                         note: str | None = None) -> dict:
+        return self._post("/relationships/approve-confidence", json={
+            "min_confidence": min_confidence, "max_confidence": max_confidence,
+            "include_reviewed": include_reviewed, "note": note})
 
     # -- evidence --------------------------------------------------------- #
     def list_evidence(self, *, limit: int, offset: int, artifact_id: str | None = None,
@@ -234,6 +250,23 @@ class NavigateClient:
 
     def gov_quality(self, *, ascending: bool = False) -> dict:
         return self._get("/governance/quality", {"ascending": ascending})
+
+    def gov_domains(self) -> list:
+        return self._get("/governance/domains")
+
+    def gov_domain(self, name: str) -> dict:
+        return self._get(f"/governance/domains/{_seg(name)}")
+
+    def gov_changes(self, *, limit: int = 20, offset: int = 0,
+                    object_id: str | None = None,
+                    change_type: str | None = None) -> dict:
+        return self._get("/governance/changes", {
+            "limit": limit, "offset": offset, "object_id": object_id,
+            "change_type": change_type})
+
+    def gov_growth(self, *, interval: str = "month", limit: int = 12) -> dict:
+        return self._get("/governance/growth",
+                         {"interval": interval, "limit": limit})
 
     # -- graphrag --------------------------------------------------------- #
     def ask(self, question: str, *, depth: int = 2, show_context: bool = True,
