@@ -109,6 +109,63 @@ def test_relationship_review(client):
     assert "Rejected" in r.text and "REJECTD" not in r.text
 
 
+def test_relationship_archive(client):
+    r = client.post("/relationships/4/review", data={"action": "archive"})
+    assert r.status_code == 200
+    assert 'class="badge badge-archived"' in r.text
+    assert "Archived" in r.text
+    assert (4, "archive") in client.fake.actions
+
+
+def test_governance_changes_fragment(client):
+    r = client.get("/governance/changes", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "<!DOCTYPE html>" not in r.text
+    # Object ids are resolved to display names from the knowledge list.
+    assert "Salesforce" in r.text
+
+
+def test_governance_growth_fragment(client):
+    r = client.get("/governance/growth", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "2026-04" in r.text
+
+
+def test_governance_bulk_approve_knowledge(client):
+    r = client.post("/governance/approve-confidence/knowledge",
+                    data={"min_confidence": "0.9"})
+    assert r.status_code == 200
+    assert "Approved" in r.text and "objects" in r.text
+    assert ("knowledge", "approve-confidence") in client.fake.actions
+
+
+def test_governance_bulk_approve_relationships(client):
+    r = client.post("/governance/approve-confidence/relationships",
+                    data={"min_confidence": "0.8"})
+    assert r.status_code == 200
+    assert "Approved" in r.text and "relationships" in r.text
+    assert ("relationships", "approve-confidence") in client.fake.actions
+
+
+def test_governance_bulk_approve_rejects_unknown_kind(client):
+    r = client.post("/governance/approve-confidence/bogus",
+                    data={"min_confidence": "0.9"})
+    assert r.status_code == 400
+    assert client.fake.actions == []
+
+
+def test_dashboard_shows_last_scan(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "Last scan" in r.text
+
+
+def test_knowledge_table_shows_counts(client):
+    r = client.get("/knowledge", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "Links" in r.text
+
+
 def test_relationship_review_rejects_unknown_action(client):
     # A bogus action must not reach Navigate, must not be reflected into the
     # response (XSS), and must not return a fake "success" badge.

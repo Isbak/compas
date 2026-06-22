@@ -95,12 +95,53 @@ def test_action_allowlist_rejects_unknown():
     for call in (
         lambda: client.artifact_action("a-1", "delete"),
         lambda: client.knowledge_action("ko-1", "drop"),
-        lambda: client.relationship_action(1, "archive"),
+        lambda: client.relationship_action(1, "delete"),
         lambda: client.assessment_action(1, "archive"),
     ):
         with pytest.raises(NavigateError) as exc:
             call()
         assert exc.value.status == 400
+
+
+def test_governance_growth_url_and_params():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"interval": "week", "points": []})
+
+    client = _make_client(handler)
+    client.gov_growth(interval="week", limit=8)
+    assert "/api/governance/growth" in seen["url"]
+    assert "interval=week" in seen["url"] and "limit=8" in seen["url"]
+
+
+def test_approve_confidence_posts_body():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["method"] = request.method
+        seen["body"] = request.content.decode()
+        return httpx.Response(200, json={"objects_approved": 3})
+
+    client = _make_client(handler)
+    client.knowledge_approve_confidence(min_confidence=0.9, max_confidence=1.0)
+    assert seen["method"] == "POST"
+    assert "/api/knowledge-objects/approve-confidence" in seen["url"]
+    assert "min_confidence" in seen["body"]
+
+
+def test_relationship_archive_action_allowed():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"id": "1", "status": "ARCHIVED"})
+
+    client = _make_client(handler)
+    client.relationship_action(1, "archive")
+    assert seen["url"].endswith("/api/relationships/1/archive")
 
 
 def test_compliance_equations_url_and_filter():

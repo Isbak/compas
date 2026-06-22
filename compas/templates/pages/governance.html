@@ -61,6 +61,40 @@
   {% endfor %}
 </div>
 
+<div class="section-title"><h2>Bulk Approval</h2></div>
+<div class="grid" style="grid-template-columns:1fr 1fr;">
+  {% for kind, label in [('knowledge', 'Knowledge Objects'), ('relationships', 'Relationships')] %}
+  <div class="card">
+    <h3>Approve {{ label }} by confidence</h3>
+    <form hx-post="/governance/approve-confidence/{{ kind }}"
+          hx-target="#bulk-{{ kind }}" hx-swap="innerHTML">
+      <div class="flex items-center gap mt">
+        <label class="muted">Min confidence</label>
+        <input class="input" type="number" name="min_confidence" min="0" max="1"
+               step="0.05" value="0.9" style="width:90px">
+        <label class="muted">Max</label>
+        <input class="input" type="number" name="max_confidence" min="0" max="1"
+               step="0.05" value="1.0" style="width:90px">
+        <label class="muted"><input type="checkbox" name="include_reviewed" value="true"> incl. reviewed</label>
+        <button class="btn btn-sm btn-success" type="submit">Approve</button>
+        <span id="bulk-{{ kind }}"></span>
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid" style="grid-template-columns:1fr 1fr;">
+  <div>
+    <div class="section-title"><h2>Recent Changes</h2></div>
+    <div hx-get="/governance/changes" hx-trigger="load"><div class="empty">Loading…</div></div>
+  </div>
+  <div>
+    <div class="section-title"><h2>Growth</h2></div>
+    <div hx-get="/governance/growth" hx-trigger="load"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
 <div class="section-title"><h2>Stale Objects <span class="faint">({{ data.stale_objects|length }})</span></h2></div>
 <div class="table-wrap">
   <table>

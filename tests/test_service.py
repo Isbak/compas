@@ -13,6 +13,57 @@ def test_dashboard_maps_stats(fake_client):
     assert d["approved_objects"] == 4          # status=APPROVED count
     assert d["quality_score"] == 71.7
     assert d["approved_pct"] > 0
+    assert d["last_scan"] == "2026-05-12T00:00:00"
+
+
+def test_domain_overview_uses_real_endpoint(fake_client):
+    rows = service.domain_overview(fake_client)
+    by_name = {r["domain"]: r for r in rows}
+    assert by_name["Test & Release"]["objects"] == 3
+    assert by_name["Test & Release"]["quality"] == 84.0
+    assert by_name["Test & Release"]["owner"] == "Test & Release Team"
+    assert by_name["Platform"]["review_backlog"] == 2
+
+
+def test_get_domain_uses_health_endpoint(fake_client):
+    d = service.get_domain(fake_client, "Test & Release")
+    assert d["object_count"] == 3
+    assert d["review_backlog"] == 1
+    assert d["quality"] == 84.0
+
+
+def test_recent_changes_resolves_names(fake_client):
+    rows = service.recent_changes(fake_client)
+    assert rows
+    by_id = {c["id"]: c for c in rows}
+    assert by_id[3]["object_name"] == "Salesforce"   # ko-sfdc resolved
+    assert by_id[3]["change_type"] == "STATUS_CHANGE"
+
+
+def test_growth_trend(fake_client):
+    g = service.growth_trend(fake_client)
+    assert g["interval"] == "month"
+    assert len(g["points"]) == 2
+    assert g["points"][-1]["objects_total"] == 6
+
+
+def test_knowledge_row_includes_counts(fake_client):
+    page = service.list_knowledge(fake_client)
+    relgov = next(o for o in page.items if o["id"] == "ko-relgov")
+    assert relgov["relationship_count"] == 3
+    assert relgov["evidence_count"] == 17
+    assert relgov["mention_count"] == 1
+
+
+def test_bulk_approve_confidence_dispatch(fake_client):
+    res = service.bulk_approve_confidence(
+        fake_client, kind="knowledge", min_confidence=0.9)
+    assert res["objects_approved"] >= 1
+    res = service.bulk_approve_confidence(
+        fake_client, kind="relationships", min_confidence=0.8)
+    assert res["relationships_approved"] >= 1
+    assert service.bulk_approve_confidence(
+        fake_client, kind="bogus", min_confidence=0.5) is None
 
 
 def test_list_artifacts_pagination(fake_client):
