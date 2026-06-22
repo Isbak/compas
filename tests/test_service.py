@@ -150,6 +150,62 @@ def test_ask_maps_navigate_response(fake_client):
     assert ans["focus_id"] == "ko-relgov"
 
 
+def test_ask_modes_dispatch(fake_client):
+    service.ask(fake_client, "Release Governance", mode="explain")
+    assert ("ask", "explain") in fake_client.actions
+    service.ask(fake_client, "A", mode="compare", term_b="B")
+    assert ("ask", "compare") in fake_client.actions
+
+
+# --- Cost / graph analytics / RDF ------------------------------------------ #
+def test_cost_overview_maps_ledger(fake_client):
+    c = service.cost_overview(fake_client)
+    assert c["available"] is True
+    assert c["summary"]["total_tokens"] == 120000
+    assert c["summary"]["cost_usd"] == 1.85
+    models = {r["model"] for r in c["by_model"]}
+    assert "claude-opus-4-8" in models
+    assert c["per_document"][0]["artifact_id"] == "artifact-000"
+
+
+def test_cost_overview_degrades_when_unavailable():
+    from tests.conftest import FakeNavigateClient
+    c = service.cost_overview(FakeNavigateClient(fail=True))
+    assert c["available"] is False
+    assert c["summary"]["total_tokens"] == 0
+
+
+def test_observability_includes_analytics_and_rdf(fake_client):
+    o = service.observability(fake_client)
+    assert o["graph_analytics"]["available"] is True
+    assert o["graph_analytics"]["domains"][0]["domain"] == "Process"
+    assert o["rdf"]["available"] is True
+    assert o["rdf"]["stats"]["knowledge_triples"] == 42
+
+
+# --- Governance extras ----------------------------------------------------- #
+def test_governance_center_includes_drift_and_owners(fake_client):
+    gov = service.governance_center(fake_client)
+    assert gov["drift"] and gov["drift"][0]["change_type"] == "QUALITY_DROP"
+    # Object ids resolved to display names.
+    assert gov["drift"][0]["object_name"] == "Salesforce"
+    assert gov["owners"][0]["owner_id"] == "Test & Release Team"
+
+
+def test_object_history_resolves_and_shapes(fake_client):
+    h = service.object_history(fake_client, "ko-relgov")
+    assert h["owner"]["owner_id"] == "Test & Release Team"
+    assert h["changes"][0]["change_type"] == "STATUS_CHANGE"
+
+
+def test_assign_owner_and_flag_call_api(fake_client):
+    service.assign_owner(fake_client, "ko-relgov", owner_type="team",
+                         owner_id="Platform Team")
+    service.flag_object(fake_client, "ko-relgov")
+    assert ("ko-relgov", "assign-owner:Platform Team") in fake_client.actions
+    assert ("ko-relgov", "flag") in fake_client.actions
+
+
 # --- Compliance & standards ------------------------------------------------ #
 def test_compliance_home_maps_coverage(fake_client):
     home = service.compliance_home(fake_client)

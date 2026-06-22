@@ -25,6 +25,10 @@ ARTIFACT_ACTIONS = frozenset({"rescan", "extract", "classify"})
 KNOWLEDGE_ACTIONS = frozenset({"approve", "reject", "archive"})
 RELATIONSHIP_ACTIONS = frozenset({"approve", "reject", "archive"})
 ASSESSMENT_ACTIONS = frozenset({"approve", "reject"})
+#: GraphRAG reasoning modes Navigate exposes as ``POST /ask/{mode}``. The mode
+#: is interpolated into the request path, so (as with the action allowlists) we
+#: never let an arbitrary value through.
+ASK_MODES = frozenset({"explain", "impact", "compare", "path-reason"})
 
 
 def _seg(value: Any) -> str:
@@ -86,6 +90,26 @@ class NavigateClient:
 
     def _get(self, path: str, params: dict | None = None) -> Any:
         return self._request("GET", path, params=_clean(params))
+
+    def _get_raw(self, path: str, params: dict | None = None) -> tuple[bytes, str]:
+        """Fetch a non-JSON document (graph / RDF exports) as raw bytes.
+
+        Returns ``(content, content_type)``. Navigate's export endpoints stream
+        GEXF/GraphML/Turtle files rather than JSON, so the standard ``_request``
+        (which calls ``resp.json()``) can't be used. Errors still raise
+        :class:`NavigateError`, so route handlers surface them uniformly.
+        """
+        try:
+            resp = self._client.get(path, params=_clean(params))
+        except httpx.RequestError as exc:
+            raise NavigateError(
+                f"Could not reach Navigate API at "
+                f"{self.settings.navigate_api_url}: {exc}") from exc
+        if resp.status_code >= 400:
+            raise NavigateError(f"HTTP {resp.status_code}",
+                                status=resp.status_code, details=resp.text)
+        return resp.content, resp.headers.get("content-type",
+                                              "application/octet-stream")
 
     def _post(self, path: str, json: dict | None = None, **kw) -> Any:
         return self._request("POST", path, json=json, **kw)
@@ -268,6 +292,66 @@ class NavigateClient:
         return self._get("/governance/growth",
                          {"interval": interval, "limit": limit})
 
+    def gov_drift(self, *, limit: int = 20) -> list:
+        return self._get("/governance/drift", {"limit": limit})
+
+    def gov_owners(self) -> list:
+        return self._get("/governance/owners")
+
+    def gov_object_history(self, object_id: str) -> dict:
+        return self._get(f"/governance/objects/{_seg(object_id)}/history")
+
+    def gov_assign_owner(self, object_id: str, *, owner_type: str,
+                         owner_id: str) -> dict:
+        return self._post(
+            f"/governance/objects/{_seg(object_id)}/assign-owner",
+            json={"owner_type": owner_type, "owner_id": owner_id})
+
+    def gov_flag(self, object_id: str) -> dict:
+        return self._post(f"/governance/objects/{_seg(object_id)}/flag")
+
+    # -- cost / llm usage ------------------------------------------------- #
+    def cost_summary(self) -> dict:
+        return self._get("/cost/summary")
+
+    def cost_by_operation(self) -> list:
+        return self._get("/cost/by-operation")
+
+    def cost_by_model(self) -> list:
+        return self._get("/cost/by-model")
+
+    def cost_per_document(self, *, top: int = 20) -> list:
+        return self._get("/cost/per-document", {"top": top})
+
+    def cost_vs_quality(self, *, top: int = 20) -> list:
+        return self._get("/cost/vs-quality", {"top": top})
+
+    # -- graph analytics & exports ---------------------------------------- #
+    def graph_health(self) -> dict:
+        return self._get("/graph/health")
+
+    def graph_metrics(self, *, top: int = 10) -> dict:
+        return self._get("/graph/metrics", {"top": top})
+
+    def graph_domains(self) -> list:
+        return self._get("/graph/domains")
+
+    def graph_export_gexf(self) -> tuple[bytes, str]:
+        return self._get_raw("/graph/export-gexf")
+
+    def graph_export_graphml(self) -> tuple[bytes, str]:
+        return self._get_raw("/graph/export-graphml")
+
+    # -- rdf projection --------------------------------------------------- #
+    def rdf_stats(self) -> dict:
+        return self._get("/rdf/stats")
+
+    def rdf_validate(self) -> dict:
+        return self._get("/rdf/validate")
+
+    def rdf_export(self, *, fmt: str = "turtle") -> tuple[bytes, str]:
+        return self._get_raw("/rdf/export", {"fmt": fmt})
+
     # -- graphrag --------------------------------------------------------- #
     def ask(self, question: str, *, depth: int = 2, show_context: bool = True,
             show_evidence: bool = True) -> dict:
@@ -276,6 +360,37 @@ class NavigateClient:
             json={"question": question, "depth": depth,
                   "show_context": show_context, "show_evidence": show_evidence},
             timeout=self.settings.navigate_ask_timeout)
+
+    def _ask_mode(self, mode: str, payload: dict) -> dict:
+        if mode not in ASK_MODES:
+            raise NavigateError(f"Unsupported ask mode: {mode!r}", status=400)
+        return self._request("POST", f"/ask/{mode}", json=payload,
+                             timeout=self.settings.navigate_ask_timeout)
+
+    def ask_explain(self, term: str, *, depth: int = 2, show_context: bool = True,
+                    show_evidence: bool = True) -> dict:
+        return self._ask_mode("explain", {
+            "term": term, "depth": depth, "show_context": show_context,
+            "show_evidence": show_evidence})
+
+    def ask_impact(self, term: str, *, depth: int = 2, show_context: bool = True,
+                   show_evidence: bool = True) -> dict:
+        return self._ask_mode("impact", {
+            "term": term, "depth": depth, "show_context": show_context,
+            "show_evidence": show_evidence})
+
+    def ask_compare(self, term_a: str, term_b: str, *, depth: int = 2,
+                    show_context: bool = True, show_evidence: bool = True) -> dict:
+        return self._ask_mode("compare", {
+            "term_a": term_a, "term_b": term_b, "depth": depth,
+            "show_context": show_context, "show_evidence": show_evidence})
+
+    def ask_path_reason(self, term_a: str, term_b: str, *, depth: int = 2,
+                        show_context: bool = True,
+                        show_evidence: bool = True) -> dict:
+        return self._ask_mode("path-reason", {
+            "term_a": term_a, "term_b": term_b, "depth": depth,
+            "show_context": show_context, "show_evidence": show_evidence})
 
     # -- jobs ------------------------------------------------------------- #
     def list_jobs(self, *, limit: int = 25, offset: int = 0,

@@ -33,13 +33,88 @@
 </div>
 
 {% if data.link_stats.by_target_system %}
-<div class="card">
+<div class="card mb">
   <h3>Links by target system</h3>
   <div class="flex wrap gap">
     {% for c in data.link_stats.by_target_system %}
     <span class="chip">{{ c.value or c.name or c.key }} · <strong>{{ c.count }}</strong></span>
     {% endfor %}
   </div>
+</div>
+{% endif %}
+
+{% set ga = data.graph_analytics %}
+{% if ga.available %}
+<div class="card mb">
+  <div class="flex between items-center">
+    <h3 style="margin:0">Graph analytics</h3>
+    <div class="btn-group">
+      <a class="btn btn-sm" href="/graph/export/gexf" download>⬇ GEXF</a>
+      <a class="btn btn-sm" href="/graph/export/graphml" download>⬇ GraphML</a>
+    </div>
+  </div>
+  {% if ga.health %}
+  <div class="flex wrap gap mt">
+    {% for k, v in ga.health.items() %}
+    <span class="chip">{{ k|replace('_',' ') }} · <strong>{{ v }}</strong></span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if ga.metrics %}
+  <div class="flex wrap gap mt">
+    {% for k, v in ga.metrics.items() if v is string or v is number %}
+    <span class="chip">{{ k|replace('_',' ') }} · <strong>{{ v }}</strong></span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if ga.domains %}
+  <table class="mt">
+    <thead><tr><th>Domain</th><th>Objects</th><th>Relationships</th><th>Most central</th></tr></thead>
+    <tbody>
+    {% for d in ga.domains %}
+      <tr>
+        <td>{{ d.domain }}</td>
+        <td class="num">{{ d.object_count }}</td>
+        <td class="num">{{ d.relationship_count }}</td>
+        <td>{% for c in d.most_central[:5] %}<span class="chip">{{ c.label }} · {{ c.degree }}</span>{% endfor %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+
+{% set rdf = data.rdf %}
+{% if rdf.available %}
+<div class="card">
+  <div class="flex between items-center">
+    <h3 style="margin:0">RDF projection</h3>
+    <div class="btn-group">
+      <a class="btn btn-sm" href="/rdf/export?fmt=turtle" download>⬇ Turtle</a>
+      <a class="btn btn-sm" href="/rdf/export?fmt=json-ld" download>⬇ JSON-LD</a>
+      <a class="btn btn-sm" href="/rdf/export?fmt=nt" download>⬇ N-Triples</a>
+    </div>
+  </div>
+  <div class="flex wrap gap mt">
+    <span class="chip">objects · <strong>{{ rdf.stats.objects }}</strong></span>
+    <span class="chip">relationships · <strong>{{ rdf.stats.relationships }}</strong></span>
+    <span class="chip">evidence · <strong>{{ rdf.stats.evidence }}</strong></span>
+    <span class="chip">knowledge triples · <strong>{{ rdf.stats.knowledge_triples }}</strong></span>
+    <span class="chip">relationship triples · <strong>{{ rdf.stats.relationship_triples }}</strong></span>
+    <span class="chip">provenance triples · <strong>{{ rdf.stats.provenance_triples }}</strong></span>
+  </div>
+  {% if rdf.validation.files %}
+  <div class="mt">
+    <span class="faint">Last export validation:</span>
+    {{ badge('active' if rdf.validation.all_ok else 'warning') }}
+    <div class="flex wrap gap mt">
+      {% for f in rdf.validation.files %}
+      <span class="chip">{{ f.name }} · {{ f.triples }} {% if f.ok %}✓{% else %}✕ {{ f.error }}{% endif %}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 {% endblock %}

@@ -92,6 +92,25 @@
         <dt>Created</dt><dd>{{ obj.created_at | fmt_date }}</dd>
         <dt>Updated</dt><dd>{{ obj.updated_at | fmt_date }}</dd>
       </dl>
+      <form class="flex gap mt" style="flex-wrap:wrap"
+            hx-post="/knowledge/{{ obj.id }}/assign-owner"
+            hx-target="#owner-result" hx-swap="innerHTML">
+        <input name="owner_id" placeholder="Assign owner (team or person)…"
+               autocomplete="off" style="flex:1;min-width:150px">
+        <button class="btn btn-sm" type="submit">Assign</button>
+        <button class="btn btn-sm btn-danger" type="button"
+                hx-post="/knowledge/{{ obj.id }}/flag"
+                hx-target="#owner-result" hx-swap="innerHTML">⚑ Flag</button>
+      </form>
+      <div id="owner-result" class="mt"></div>
+    </div>
+
+    <div class="card">
+      <h3>History</h3>
+      <div hx-get="/knowledge/{{ obj.id }}/history" hx-trigger="revealed"
+           hx-swap="innerHTML">
+        <div class="empty">Loading history…</div>
+      </div>
     </div>
   </aside>
 </div>

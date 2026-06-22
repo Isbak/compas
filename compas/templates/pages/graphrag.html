@@ -5,8 +5,19 @@
 
 <div class="card pad-lg" style="max-width:880px">
   <form hx-post="/graphrag/ask" hx-target="#rag-answer" hx-trigger="submit">
+    <div class="flex gap mb" style="flex-wrap:wrap">
+      <select name="mode" class="btn" style="font-weight:500"
+              onchange="compasRagMode(this.value)">
+        {% for m in modes %}
+        <option value="{{ m.value }}" data-two="{{ '1' if m.two_term else '' }}">{{ m.label }}</option>
+        {% endfor %}
+      </select>
+      <span class="faint" style="align-self:center" id="rag-hint">Ask a grounded question about your knowledge graph.</span>
+    </div>
     <div class="assistant-input">
-      <input name="question" placeholder="e.g. What supports Release Governance?" autocomplete="off" autofocus>
+      <input name="question" id="rag-q" placeholder="e.g. What supports Release Governance?" autocomplete="off" autofocus>
+      <input name="term_b" id="rag-term-b" placeholder="…and (second term)" autocomplete="off"
+             style="display:none;flex:1;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:var(--radius-sm)">
       <button class="btn btn-primary" type="submit">Ask</button>
     </div>
   </form>
@@ -17,6 +28,22 @@
     {% endfor %}
   </div>
 </div>
+<script>
+  function compasRagMode(mode) {
+    var opt = document.querySelector('select[name="mode"] option[value="' + mode + '"]');
+    var two = opt && opt.getAttribute('data-two');
+    var tb = document.getElementById('rag-term-b');
+    var q = document.getElementById('rag-q');
+    tb.style.display = two ? 'block' : 'none';
+    var hints = {ask: 'Ask a grounded question about your knowledge graph.',
+                 explain: 'Explain a concept from the graph.',
+                 impact: 'See what a change to this concept would affect.',
+                 compare: 'Compare two concepts side by side.',
+                 'path-reason': 'Reason over the path connecting two concepts.'};
+    document.getElementById('rag-hint').textContent = hints[mode] || hints.ask;
+    q.placeholder = two ? 'First term…' : 'e.g. What supports Release Governance?';
+  }
+</script>
 
 <div id="rag-answer" style="max-width:880px"></div>
 {% endblock %}

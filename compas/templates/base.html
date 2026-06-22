@@ -25,6 +25,7 @@
       ('assessments','/compliance/assessments','Assessments','✔')]),
     ('Govern', [
       ('governance','/governance','Governance','⚖'),
+      ('costs','/costs','Cost & LLM Usage','¤'),
       ('observability','/observability','Observability','📈')]),
     ('Explore', [
       ('graph','/graph','Graph Explorer','✦'),
@@ -109,9 +110,11 @@
 <script src="/static/js/compas.js"></script>
 {% block scripts %}{% endblock %}
 <script>
+  var COMPAS_THEMES = ['dark', 'light', 'claude'];
   function compasToggleTheme() {
     var el = document.documentElement;
-    var next = el.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    var i = COMPAS_THEMES.indexOf(el.getAttribute('data-theme'));
+    var next = COMPAS_THEMES[(i + 1) % COMPAS_THEMES.length];
     el.setAttribute('data-theme', next);
     try { localStorage.setItem('compas-theme', next); } catch (e) {}
   }

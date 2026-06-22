@@ -34,6 +34,22 @@
   --text-dim: #57606a; --text-faint: #8b949e; --shadow: 0 8px 24px rgba(140,149,159,.2);
 }
 
+/* "Claude" theme — warm ivory canvas + clay accent, the Anthropic Claude look.
+   These are a publicly-derived starting point: replace the tokens below with the
+   exact values exported from your design at claude.ai/design to match it 1:1.
+   TODO(claude-design): paste your own design tokens here. */
+[data-theme="claude"] {
+  --bg: #F0EEE6; --bg-alt: #F5F4EE; --panel: #FBFAF7; --panel-2: #EFEDE4;
+  --border: #E3E1D7; --border-soft: #ECEAE0; --text: #1F1E1D;
+  --text-dim: #6B6A63; --text-faint: #97958B;
+  --accent: #CC785C; --accent-2: #C2613F;
+  --shadow: 0 8px 28px rgba(60, 50, 40, 0.12);
+}
+[data-theme="claude"] .topbar { background: rgba(245,244,238,.85); }
+[data-theme="claude"] .badge-reviewed,
+[data-theme="claude"] .badge-info,
+[data-theme="claude"] .badge-fresh { color: var(--accent-2); }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; }
 body {

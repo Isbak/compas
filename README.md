@@ -27,7 +27,10 @@ Navigate  (Filesystem → Scanner → SQLite → … → Fuseki → GraphRAG →
 - **Minimal JavaScript.** FastAPI + Jinja2 + HTMX. The HTMX-style helper and the
   graph renderer are **vendored** (no CDNs), so the UI works offline.
 - **Dark-first, responsive** design inspired by Obsidian, Linear, GitHub and the
-  Neo4j Browser.
+  Neo4j Browser. The toolbar theme button cycles **dark → light → Claude** (a
+  warm Anthropic-Claude palette); swap in your own tokens from
+  [claude.ai/design](https://claude.ai/design) via the `[data-theme="claude"]`
+  block in `static/css/styles.css`.
 
 ## Features
 
@@ -38,11 +41,12 @@ Navigate  (Filesystem → Scanner → SQLite → … → Fuseki → GraphRAG →
 | **Knowledge Objects** | Filterable table (confidence, owner, status, review, quality) and a detail view with relationships (graph neighbours), evidence, source documents and inline approve/reject/archive |
 | **Relationships** | Subject–predicate–object triples (names resolved) with inline approve/reject |
 | **Domains** | Per-domain health from Navigate's `/governance/domains` (objects, owner, quality, freshness, review backlog) |
-| **Governance** | Review queue, pending relationships, quality/drift/orphan/duplicate alerts, stale objects, knowledge-health metrics |
+| **Governance** | Review queue, pending relationships, quality/drift/orphan/duplicate alerts, stale objects, knowledge-health metrics, drift feed and owner roster |
+| **Cost & LLM Usage** | Navigate's token-usage / spend ledger (`/cost/*`): totals, by-model, by-operation, most expensive documents and spend-vs-confidence |
 | **Graph Explorer** | Vendored interactive SVG graph (zoom, pan, drag, expand, search, shortest path, view modes) backed by Navigate's `/graph/*` endpoints |
-| **GraphRAG** | Navigate's assistant (`/ask`) with answer, confidence band, knowledge objects, relationships and evidence used |
+| **GraphRAG** | Navigate's assistant with reasoning modes (`/ask`, `/ask/explain|impact|compare|path-reason`) — answer, confidence band, knowledge objects, relationships and evidence used |
 | **Search** | Fans out across Navigate's `search=` filters for knowledge objects and artifacts |
-| **Observability** | Navigate pipeline jobs, API health, link statistics |
+| **Observability** | Navigate pipeline jobs, API health, link statistics, graph analytics (`/graph/health|metrics|domains`) and RDF projection (`/rdf/*`) with GEXF/GraphML/Turtle exports |
 | **Settings** | Navigate connection + live health |
 
 ## Quick start

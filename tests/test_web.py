@@ -5,9 +5,10 @@ from __future__ import annotations
 import pytest
 
 PAGES = ["/", "/artifacts", "/knowledge", "/relationships", "/domains",
-         "/governance", "/graph", "/graphrag", "/observability", "/settings",
-         "/compliance", "/compliance/standards", "/compliance/requirements",
-         "/compliance/equations", "/compliance/gaps", "/compliance/assessments"]
+         "/governance", "/costs", "/graph", "/graphrag", "/observability",
+         "/settings", "/compliance", "/compliance/standards",
+         "/compliance/requirements", "/compliance/equations",
+         "/compliance/gaps", "/compliance/assessments"]
 
 
 @pytest.mark.parametrize("path", PAGES)
@@ -224,6 +225,105 @@ def test_graphrag_ask_partial(client):
     assert r.status_code == 200
     assert "answer-card" in r.text
     assert "Release Governance" in r.text
+
+
+def test_graphrag_ask_explain_mode(client):
+    r = client.post("/graphrag/ask",
+                    data={"question": "Release Governance", "mode": "explain"})
+    assert r.status_code == 200
+    assert ("ask", "explain") in client.fake.actions
+
+
+def test_graphrag_ask_compare_uses_two_terms(client):
+    r = client.post("/graphrag/ask", data={
+        "question": "Release Governance", "mode": "compare",
+        "term_b": "Launchpad Model"})
+    assert r.status_code == 200
+    assert ("ask", "compare") in client.fake.actions
+
+
+def test_graphrag_ask_unknown_mode_falls_back(client):
+    # An unknown mode must not reach a bogus Navigate path; it degrades to /ask.
+    r = client.post("/graphrag/ask",
+                    data={"question": "x", "mode": "../etc"})
+    assert r.status_code == 200
+    assert not any(a == ("ask", "../etc") for a in client.fake.actions)
+
+
+# --- Cost / LLM usage ------------------------------------------------------ #
+def test_cost_page_shows_summary(client):
+    r = client.get("/costs")
+    assert r.status_code == 200
+    assert "Cost" in r.text
+    assert "claude-opus-4-8" in r.text          # by-model breakdown rendered
+    assert "$1.85" in r.text                     # total spend formatted
+
+
+def test_cost_page_unavailable_degrades(failing_client):
+    # No cost ledger → an explanatory panel, not a 502.
+    r = failing_client.get("/costs")
+    assert r.status_code == 200
+    assert "isn't available" in r.text
+
+
+# --- Graph / RDF exports --------------------------------------------------- #
+def test_graph_export_gexf(client):
+    r = client.get("/graph/export/gexf")
+    assert r.status_code == 200
+    assert "attachment" in r.headers["content-disposition"]
+    assert "gexf" in r.text
+
+
+def test_graph_export_unknown_format(client):
+    assert client.get("/graph/export/bogus").status_code == 400
+
+
+def test_rdf_export_turtle(client):
+    r = client.get("/rdf/export?fmt=turtle")
+    assert r.status_code == 200
+    assert "navigate.ttl" in r.headers["content-disposition"]
+
+
+def test_rdf_export_unknown_format(client):
+    assert client.get("/rdf/export?fmt=bogus").status_code == 400
+
+
+def test_observability_shows_graph_analytics_and_rdf(client):
+    r = client.get("/observability")
+    assert r.status_code == 200
+    assert "Graph analytics" in r.text
+    assert "RDF projection" in r.text
+    assert "GEXF" in r.text and "Turtle" in r.text
+
+
+# --- Knowledge ownership / flag / history ---------------------------------- #
+def test_knowledge_history_fragment(client):
+    r = client.get("/knowledge/ko-relgov/history", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "<!DOCTYPE html>" not in r.text
+    assert "Status Change" in r.text
+
+
+def test_knowledge_assign_owner(client):
+    r = client.post("/knowledge/ko-relgov/assign-owner",
+                    data={"owner_id": "Platform Team", "owner_type": "team"})
+    assert r.status_code == 200
+    assert "Owner set" in r.text
+    assert ("ko-relgov", "assign-owner:Platform Team") in client.fake.actions
+
+
+def test_knowledge_assign_owner_requires_value(client):
+    r = client.post("/knowledge/ko-relgov/assign-owner",
+                    data={"owner_id": "  "})
+    assert r.status_code == 400
+    assert client.fake.actions == []
+
+
+def test_knowledge_flag(client):
+    r = client.post("/knowledge/ko-relgov/flag")
+    assert r.status_code == 200
+    assert "Flagged" in r.text
+    assert ("ko-relgov", "flag") in client.fake.actions
 
 
 def test_notifications_partial(client):
