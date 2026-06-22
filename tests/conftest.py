@@ -188,6 +188,79 @@ GROWTH = {"interval": "month", "points": [
      "relationships_total": 4},
 ]}
 
+# --- Governance extras (drift / owners / object history) ------------------- #
+DRIFT = [
+    {"id": 9, "change_type": "QUALITY_DROP", "target_kind": "knowledge_object",
+     "object_id": "ko-sfdc", "field": "quality_score", "old_value": "70",
+     "new_value": "55", "detail": None, "detected_at": "2026-05-13T00:00:00"},
+]
+
+OWNERS = [
+    {"object_id": "ko-relgov", "owner_type": "team",
+     "owner_id": "Test & Release Team", "assigned_at": "2026-04-01T00:00:00",
+     "assigned_by": "kristoffer"},
+]
+
+OBJECT_HISTORY = {
+    "object_id": "ko-relgov",
+    "changes": [
+        {"id": 3, "change_type": "STATUS_CHANGE",
+         "target_kind": "knowledge_object", "object_id": "ko-relgov",
+         "field": "status", "old_value": "PROPOSED", "new_value": "APPROVED",
+         "detail": None, "detected_at": "2026-05-01T00:00:00"},
+    ],
+    "lifecycle": {"review_state": "APPROVED", "freshness_state": "FRESH"},
+    "owner": {"object_id": "ko-relgov", "owner_type": "team",
+              "owner_id": "Test & Release Team", "assigned_at": None,
+              "assigned_by": "kristoffer"},
+}
+
+# --- Cost / LLM usage ------------------------------------------------------ #
+COST_SUMMARY = {
+    "calls": 120, "input_tokens": 90000, "output_tokens": 30000,
+    "total_tokens": 120000, "cache_read_tokens": 5000, "cache_write_tokens": 2000,
+    "cost_usd": 1.85, "unpriced_calls": 3,
+}
+COST_BY_OPERATION = [
+    {"operation": "extract", "calls": 60, "total_tokens": 70000, "cost_usd": 1.10},
+    {"operation": "classify", "calls": 60, "total_tokens": 50000, "cost_usd": 0.75},
+]
+COST_BY_MODEL = [
+    {"model": "claude-opus-4-8", "calls": 100, "total_tokens": 110000,
+     "cost_usd": 1.70, "unpriced_calls": 0},
+    {"model": "local/ollama", "calls": 20, "total_tokens": 10000,
+     "cost_usd": None, "unpriced_calls": 3},
+]
+COST_PER_DOCUMENT = [
+    {"artifact_id": "artifact-000", "calls": 12, "total_tokens": 24000,
+     "cost_usd": 0.42},
+]
+COST_VS_QUALITY = [
+    {"artifact_id": "artifact-000", "document_type": "docx",
+     "type_confidence": 0.91, "calls": 12, "total_tokens": 24000,
+     "cost_usd": 0.42},
+]
+
+# --- Graph analytics ------------------------------------------------------- #
+GRAPH_HEALTH = {"islands": 1, "untraceable_claims": 2, "low_confidence": 3,
+                "duplicates": 0, "connectivity": 0.87}
+GRAPH_METRICS = {"density": 0.21, "components": 1, "clusters": 3,
+                 "top_central": [{"id": "ko-relgov", "label": "Release Governance",
+                                  "degree": 3}]}
+GRAPH_DOMAINS = [
+    {"domain": "Process", "object_count": 1, "relationship_count": 3,
+     "most_central": [{"id": "ko-relgov", "label": "Release Governance",
+                       "degree": 3}]},
+]
+
+# --- RDF projection -------------------------------------------------------- #
+RDF_STATS = {"objects": 6, "relationships": 4, "evidence": 26,
+             "knowledge_triples": 42, "relationship_triples": 12,
+             "provenance_triples": 30}
+RDF_VALIDATION = {"files": {
+    "navigate.ttl": {"ok": True, "triples": 84, "error": None},
+}}
+
 
 def _paginate(items, limit, offset):
     return {"items": items[offset:offset + limit], "limit": limit,
@@ -460,6 +533,83 @@ class FakeNavigateClient:
         self._maybe_fail()
         return GROWTH
 
+    def gov_drift(self, *, limit=20):
+        self._maybe_fail()
+        return DRIFT[:limit]
+
+    def gov_owners(self):
+        self._maybe_fail()
+        return OWNERS
+
+    def gov_object_history(self, object_id):
+        self._maybe_fail()
+        return {**OBJECT_HISTORY, "object_id": object_id}
+
+    def gov_assign_owner(self, object_id, *, owner_type, owner_id):
+        self._maybe_fail()
+        self.actions.append((object_id, f"assign-owner:{owner_id}"))
+        return {"id": object_id, "status": "ok", "message": "owner set"}
+
+    def gov_flag(self, object_id):
+        self._maybe_fail()
+        self.actions.append((object_id, "flag"))
+        return {"id": object_id, "status": "ok", "message": "flagged"}
+
+    # cost / llm usage
+    def cost_summary(self):
+        self._maybe_fail()
+        return COST_SUMMARY
+
+    def cost_by_operation(self):
+        self._maybe_fail()
+        return COST_BY_OPERATION
+
+    def cost_by_model(self):
+        self._maybe_fail()
+        return COST_BY_MODEL
+
+    def cost_per_document(self, *, top=20):
+        self._maybe_fail()
+        return COST_PER_DOCUMENT[:top]
+
+    def cost_vs_quality(self, *, top=20):
+        self._maybe_fail()
+        return COST_VS_QUALITY[:top]
+
+    # graph analytics & exports
+    def graph_health(self):
+        self._maybe_fail()
+        return GRAPH_HEALTH
+
+    def graph_metrics(self, *, top=10):
+        self._maybe_fail()
+        return GRAPH_METRICS
+
+    def graph_domains(self):
+        self._maybe_fail()
+        return GRAPH_DOMAINS
+
+    def graph_export_gexf(self):
+        self._maybe_fail()
+        return b"<gexf></gexf>", "application/gexf+xml"
+
+    def graph_export_graphml(self):
+        self._maybe_fail()
+        return b"<graphml></graphml>", "application/graphml+xml"
+
+    # rdf projection
+    def rdf_stats(self):
+        self._maybe_fail()
+        return RDF_STATS
+
+    def rdf_validate(self):
+        self._maybe_fail()
+        return RDF_VALIDATION
+
+    def rdf_export(self, *, fmt="turtle"):
+        self._maybe_fail()
+        return b"@prefix : <#> .", "text/turtle"
+
     # graphrag
     def ask(self, question, *, depth=2, show_context=True, show_evidence=True):
         self._maybe_fail()
@@ -472,6 +622,30 @@ class FakeNavigateClient:
                 "evidence_used": [{"document": "artifact-000", "handle": "h1",
                                    "quote": "Release Governance supports launches."}],
                 "context": "graph-first retrieval context"}
+
+    def _ask_reply(self, mode, **terms):
+        self._maybe_fail()
+        self.actions.append(("ask", mode))
+        subject = terms.get("term") or terms.get("term_a") or "?"
+        return {"answer": f"[{mode}] {subject}", "confidence": "medium",
+                "objects_used": [{"id": "ko-relgov", "label": "Release Governance",
+                                  "type": "Process"}],
+                "relationships_used": [], "evidence_used": [],
+                "context": None}
+
+    def ask_explain(self, term, *, depth=2, show_context=True, show_evidence=True):
+        return self._ask_reply("explain", term=term)
+
+    def ask_impact(self, term, *, depth=2, show_context=True, show_evidence=True):
+        return self._ask_reply("impact", term=term)
+
+    def ask_compare(self, term_a, term_b, *, depth=2, show_context=True,
+                    show_evidence=True):
+        return self._ask_reply("compare", term_a=term_a, term_b=term_b)
+
+    def ask_path_reason(self, term_a, term_b, *, depth=2, show_context=True,
+                        show_evidence=True):
+        return self._ask_reply("path-reason", term_a=term_a, term_b=term_b)
 
     # jobs / links
     def list_jobs(self, *, limit=25, offset=0, job_type=None, status=None):

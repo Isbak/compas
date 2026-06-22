@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% from "macros.html" import stat_card %}
+{% block title %}Cost & LLM Usage{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Cost &amp; LLM Usage</h1>
+  <div class="sub">Token usage and spend across every recorded LLM call in Navigate's pipeline.</div></div></div>
+
+{% if not data.available %}
+<div class="card"><div class="empty">
+  Navigate's cost ledger isn't available. It requires a Navigate build that
+  exposes the <code>/cost</code> endpoints (older servers surface this only via
+  <code>catalog cost-report</code>).
+</div></div>
+{% else %}
+{% set s = data.summary %}
+<div class="grid cards mb">
+  {{ stat_card('Total cost', '$%.2f'|format(s.cost_usd) if s.cost_usd is not none else '—', '¤',
+               (s.unpriced_calls ~ ' unpriced') if s.unpriced_calls else '') }}
+  {{ stat_card('LLM calls', '{:,}'.format(s.calls)) }}
+  {{ stat_card('Total tokens', '{:,}'.format(s.total_tokens),
+               sub='%s in · %s out'|format('{:,}'.format(s.input_tokens), '{:,}'.format(s.output_tokens))) }}
+  {{ stat_card('Cache tokens', '{:,}'.format(s.cache_read_tokens + s.cache_write_tokens),
+               sub='%s read · %s write'|format('{:,}'.format(s.cache_read_tokens), '{:,}'.format(s.cache_write_tokens))) }}
+</div>
+
+<div class="grid" style="grid-template-columns:1fr 1fr;">
+  <div class="card">
+    <h3>By model</h3>
+    <table>
+      <thead><tr><th>Model</th><th>Calls</th><th>Tokens</th><th>Cost</th></tr></thead>
+      <tbody>
+      {% for r in data.by_model %}
+        <tr>
+          <td><span class="chip">{{ r.model }}</span>
+            {% if r.unpriced_calls %}<span class="faint">· {{ r.unpriced_calls }} unpriced</span>{% endif %}</td>
+          <td class="num">{{ '{:,}'.format(r.calls) }}</td>
+          <td class="num">{{ '{:,}'.format(r.total_tokens) }}</td>
+          <td class="num">{{ '$%.2f'|format(r.cost_usd) if r.cost_usd is not none else '—' }}</td>
+        </tr>
+      {% else %}<tr><td colspan="4" class="empty">No model breakdown.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>By operation</h3>
+    <table>
+      <thead><tr><th>Operation</th><th>Calls</th><th>Tokens</th><th>Cost</th></tr></thead>
+      <tbody>
+      {% for r in data.by_operation %}
+        <tr>
+          <td><span class="chip">{{ r.operation }}</span></td>
+          <td class="num">{{ '{:,}'.format(r.calls) }}</td>
+          <td class="num">{{ '{:,}'.format(r.total_tokens) }}</td>
+          <td class="num">{{ '$%.2f'|format(r.cost_usd) if r.cost_usd is not none else '—' }}</td>
+        </tr>
+      {% else %}<tr><td colspan="4" class="empty">No operation breakdown.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt">
+  <h3>Most expensive documents</h3>
+  <table>
+    <thead><tr><th>Document</th><th>Calls</th><th>Tokens</th><th>Cost</th></tr></thead>
+    <tbody>
+    {% for r in data.per_document %}
+      <tr>
+        <td><a class="mono" href="/artifacts/{{ r.artifact_id }}">{{ r.artifact_id or '—' }}</a></td>
+        <td class="num">{{ '{:,}'.format(r.calls) }}</td>
+        <td class="num">{{ '{:,}'.format(r.total_tokens) }}</td>
+        <td class="num">{{ '$%.2f'|format(r.cost_usd) if r.cost_usd is not none else '—' }}</td>
+      </tr>
+    {% else %}<tr><td colspan="4" class="empty">No per-document cost recorded.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if data.vs_quality %}
+<div class="card mt">
+  <h3>Spend vs classification confidence</h3>
+  <div class="sub muted mb">Per-document spend beside the model's own document-type confidence — high spend with low confidence is worth a look.</div>
+  <table>
+    <thead><tr><th>Document</th><th>Type</th><th>Type confidence</th><th>Tokens</th><th>Cost</th></tr></thead>
+    <tbody>
+    {% for r in data.vs_quality %}
+      <tr>
+        <td><a class="mono" href="/artifacts/{{ r.artifact_id }}">{{ r.artifact_id or '—' }}</a></td>
+        <td>{{ r.document_type or '—' }}</td>
+        <td class="num">{{ (r.type_confidence*100)|round ~ '%' if r.type_confidence is not none else '—' }}</td>
+        <td class="num">{{ '{:,}'.format(r.total_tokens) }}</td>
+        <td class="num">{{ '$%.2f'|format(r.cost_usd) if r.cost_usd is not none else '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

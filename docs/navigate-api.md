@@ -71,9 +71,17 @@ catalog api --host 127.0.0.1 --port 8000     # Swagger at /docs, schema at /open
 - `GET /graph/object/{object_id}/impact` → `ImpactResponse`
 - `GET /graph/path?source=&target=&max_depth=` → `PathResponse { source, target, found, hops: [PathHop{ from, to, predicate, forward }] }`
 - `GET /graph/export-json` → `GraphExport { nodes: [GraphNode], edges: [GraphEdge] }`
+- `GET /graph/health` → `dict` (islands, untraceable claims, low-confidence objects, duplicates, connectivity)
+- `GET /graph/metrics?top=N` → `dict` (density, components, clusters, centrality rankings)
+- `GET /graph/domains` → `[GraphDomain { domain, object_count, relationship_count, most_central: [GraphCentralNode{ id, label, degree }] }]`
+- `GET /graph/export-gexf` → GEXF XML download (`application/gexf+xml`)
+- `GET /graph/export-graphml` → GraphML XML download (`application/graphml+xml`)
 
 `GraphNode { id, label, type, confidence?, status?, documents?, mentions? }`
 `GraphEdge { id, source, target, predicate, confidence?, status? }`
+
+Compas surfaces graph analytics + the GEXF/GraphML exports on its **Observability**
+page; the exports are proxied server-side so the API key never reaches the browser.
 
 ### Governance
 - `GET /governance/dashboard` → `dict`
@@ -86,10 +94,42 @@ catalog api --host 127.0.0.1 --port 8000     # Swagger at /docs, schema at /open
 - `GET /governance/domains/{name}` → `DomainHealth`
 - `GET /governance/changes` — filters: `object_id, change_type` → `Paginated[ChangeLogEntry { id, change_type, target_kind, object_id?, field?, old_value?, new_value?, detail?, detected_at }]`
 - `GET /governance/growth?interval=day|week|month&limit=12` → `GrowthTrend { interval, points: [GrowthPoint{ period, artifacts_added, artifacts_total, objects_added, objects_total, relationships_added, relationships_total }] }`
+- `GET /governance/drift?limit=N` → `[ChangeLogEntry]` (recent quality/confidence drift)
+- `GET /governance/owners` → `[OwnerAssignment { object_id, owner_type, owner_id, assigned_at?, assigned_by? }]`
+- `GET /governance/objects/{object_id}/history` → `ObjectHistory { object_id, changes: [ChangeLogEntry], lifecycle?, owner? }`
+- `POST /governance/objects/{object_id}/assign-owner` — body `{ owner_type, owner_id }` → `ActionResponse`
+- `POST /governance/objects/{object_id}/flag` → `ActionResponse`
+
+Compas surfaces drift + the owner roster on its **Governance** page, and per-object
+history / assign-owner / flag on the knowledge-object detail view.
+
+### Cost / LLM usage
+The token-usage / spend ledger (`llm_usage`). Compas renders these on its **Cost &
+LLM Usage** page; against an older Navigate that lacks them it shows an
+"unavailable" panel rather than inventing numbers.
+
+- `GET /cost/summary` → `CostSummary { calls, input_tokens, output_tokens, total_tokens, cache_read_tokens, cache_write_tokens, cost_usd?, unpriced_calls }`
+- `GET /cost/by-operation` → `[CostByOperation { operation?, calls, total_tokens, cost_usd? }]`
+- `GET /cost/by-model` → `[CostByModel { model?, calls, total_tokens, cost_usd?, unpriced_calls }]`
+- `GET /cost/per-document?top=N` → `[CostPerDocument { artifact_id?, calls, total_tokens, cost_usd? }]`
+- `GET /cost/vs-quality?top=N` → `[CostVsQuality { artifact_id?, document_type?, type_confidence?, calls, total_tokens, cost_usd? }]`
+
+### RDF projection
+Counts + serialisation of the approved graph as RDF. Compas shows the stats +
+last-export validation on **Observability** and proxies the export downloads.
+
+- `GET /rdf/stats` → `RdfStats { objects, relationships, evidence, knowledge_triples, relationship_triples, provenance_triples }`
+- `GET /rdf/export?fmt=turtle|json-ld|nt` → RDF document download (`text/turtle` / `application/ld+json` / `application/n-triples`)
+- `GET /rdf/validate` → `RdfValidation { files: { name: { ok, triples, error? } } }`
 
 ### GraphRAG
+Gated behind Navigate's `enable_graphrag` setting; returns `501` when disabled.
+Compas exposes the reasoning modes as a selector on its **GraphRAG** page.
+
 - `POST /ask` — body `AskRequest { question, depth, show_context, show_evidence }` →
   `AskResponse { answer, confidence (band string), objects_used[], relationships_used[], evidence_used[], context? }`
+- `POST /ask/explain` · `POST /ask/impact` — body `ExplainRequest { term, depth, show_context, show_evidence }` → `AskResponse`
+- `POST /ask/compare` · `POST /ask/path-reason` — body `CompareRequest { term_a, term_b, depth, show_context, show_evidence }` → `AskResponse`
 
 ### Compliance & standards
 Navigate ingests standards (Eurocodes, ISO, GDPR…) as `Standard`/`Requirement`
@@ -130,14 +170,15 @@ endpoints below.
 ## Gaps Compas works around
 
 The previous gaps — a distinct **domains** resource, a knowledge **growth
-trend**, a **change-log / recent-changes** feed, and per-row **counts** in
-knowledge-object list responses — are now all served by the API
-(`/governance/domains`, `/governance/growth`, `/governance/changes`, and the
-`relationship_count`/`evidence_count`/`mention_count` fields). Compas still
-degrades gracefully against an older Navigate that predates them (e.g. domains
-fall back to a `/governance/dashboard` derivation).
-
-The one capability the API exposes only via the CLI (`catalog cost-report`) and
-MCP — the LLM **token-usage / cost ledger** (`llm_usage`) — has no REST
-endpoint, so Compas does not surface it. A `GET /cost/...` endpoint would let
-Compas add a cost dashboard.
+trend**, a **change-log / recent-changes** feed, per-row **counts** in
+knowledge-object list responses, and the LLM **token-usage / cost ledger**
+(once CLI/MCP-only via `catalog cost-report`) — are now all served by the API
+(`/governance/domains`, `/governance/growth`, `/governance/changes`, the
+`relationship_count`/`evidence_count`/`mention_count` fields, and the `/cost/*`
+endpoints). Likewise the graph-analytics (`/graph/health|metrics|domains` +
+GEXF/GraphML exports), governance extras (`/governance/drift|owners`, per-object
+history / assign-owner / flag), RDF projection (`/rdf/*`) and the extended
+GraphRAG reasoning modes (`/ask/explain|impact|compare|path-reason`) are now
+consumed. Compas still degrades gracefully against an older Navigate that
+predates any of them (e.g. domains fall back to a `/governance/dashboard`
+derivation, and the cost / analytics / RDF panels show an "unavailable" state).

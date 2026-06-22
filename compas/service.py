@@ -675,6 +675,13 @@ def governance_center(client: NavigateClient) -> dict:
 
     pending_rels = list_relationships(client, review_status="PROPOSED",
                                       page_size=100).items
+
+    # Drift feed (recent change-log entries) and the owner roster are newer
+    # Navigate resources; degrade to empty lists on an older server.
+    index = _objects_index(client)
+    drift = _change_rows(_safe(lambda: client.gov_drift(limit=20)) or [], index)
+    owners = [_owner_row(o, index) for o in (_safe(client.gov_owners) or [])
+              if isinstance(o, dict)]
     return {
         "review_queue": review_queue,
         "pending_relationships": pending_rels,
@@ -684,7 +691,65 @@ def governance_center(client: NavigateClient) -> dict:
         "drift_alerts": by_type.get("DRIFT", []),
         "orphaned": by_type.get("ORPHANED", []),
         "duplicate_candidates": by_type.get("DUPLICATE_CANDIDATE", []),
+        "drift": drift,
+        "owners": owners,
     }
+
+
+def _change_rows(entries: list, index: dict) -> list[dict]:
+    """Shape Navigate ChangeLogEntry items, resolving object ids to names."""
+    rows = []
+    for c in entries:
+        oid = c.get("object_id")
+        rows.append({
+            "id": c.get("id"), "change_type": c.get("change_type"),
+            "target_kind": c.get("target_kind"), "object_id": oid,
+            "object_name": index.get(oid, {}).get("name") or oid,
+            "field": c.get("field"), "old_value": c.get("old_value"),
+            "new_value": c.get("new_value"), "detail": c.get("detail"),
+            "detected_at": c.get("detected_at"),
+        })
+    return rows
+
+
+def _owner_row(o: dict, index: dict) -> dict:
+    oid = o.get("object_id")
+    return {
+        "object_id": oid,
+        "object_name": index.get(oid, {}).get("name") or oid,
+        "owner_type": o.get("owner_type"), "owner_id": o.get("owner_id"),
+        "assigned_at": o.get("assigned_at"), "assigned_by": o.get("assigned_by"),
+    }
+
+
+def object_history(client: NavigateClient, object_id: str) -> dict:
+    """Lifecycle / change history for one knowledge object.
+
+    Backed by Navigate's ``/governance/objects/{id}/history``; returns an empty
+    history (rather than erroring) when the server predates the resource.
+    """
+    data = _safe(lambda: client.gov_object_history(object_id))
+    if not data:
+        return {"object_id": object_id, "changes": [], "owner": None,
+                "lifecycle": None}
+    index = _objects_index(client)
+    owner = data.get("owner")
+    return {
+        "object_id": object_id,
+        "changes": _change_rows(data.get("changes", []), index),
+        "owner": _owner_row(owner, index) if owner else None,
+        "lifecycle": data.get("lifecycle"),
+    }
+
+
+def assign_owner(client: NavigateClient, object_id: str, *, owner_type: str,
+                 owner_id: str) -> dict:
+    return client.gov_assign_owner(object_id, owner_type=owner_type,
+                                   owner_id=owner_id)
+
+
+def flag_object(client: NavigateClient, object_id: str) -> dict:
+    return client.gov_flag(object_id)
 
 
 def recent_changes(client: NavigateClient, *, limit: int = 20,
@@ -768,6 +833,107 @@ def knowledge_health(client: NavigateClient) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Cost / LLM usage  (Navigate's /cost ledger)
+# --------------------------------------------------------------------------- #
+def cost_overview(client: NavigateClient) -> dict:
+    """Token-usage / spend ledger from Navigate's ``/cost`` endpoints.
+
+    Older Navigate servers expose this only via the CLI, so every call is
+    guarded: an absent ledger renders an "unavailable" panel rather than
+    erroring.
+    """
+    summary = _safe(client.cost_summary) or {}
+    by_operation = _safe(client.cost_by_operation) or []
+    by_model = _safe(client.cost_by_model) or []
+    per_document = _safe(lambda: client.cost_per_document(top=20)) or []
+    vs_quality = _safe(lambda: client.cost_vs_quality(top=20)) or []
+    return {
+        "available": bool(summary or by_operation or by_model),
+        "summary": {
+            "calls": summary.get("calls", 0),
+            "input_tokens": summary.get("input_tokens", 0),
+            "output_tokens": summary.get("output_tokens", 0),
+            "total_tokens": summary.get("total_tokens", 0),
+            "cache_read_tokens": summary.get("cache_read_tokens", 0),
+            "cache_write_tokens": summary.get("cache_write_tokens", 0),
+            "cost_usd": summary.get("cost_usd"),
+            "unpriced_calls": summary.get("unpriced_calls", 0),
+        },
+        "by_operation": [{
+            "operation": r.get("operation") or "—", "calls": r.get("calls", 0),
+            "total_tokens": r.get("total_tokens", 0),
+            "cost_usd": r.get("cost_usd"),
+        } for r in by_operation if isinstance(r, dict)],
+        "by_model": [{
+            "model": r.get("model") or "—", "calls": r.get("calls", 0),
+            "total_tokens": r.get("total_tokens", 0),
+            "cost_usd": r.get("cost_usd"),
+            "unpriced_calls": r.get("unpriced_calls", 0),
+        } for r in by_model if isinstance(r, dict)],
+        "per_document": [{
+            "artifact_id": r.get("artifact_id"), "calls": r.get("calls", 0),
+            "total_tokens": r.get("total_tokens", 0),
+            "cost_usd": r.get("cost_usd"),
+        } for r in per_document if isinstance(r, dict)],
+        "vs_quality": [{
+            "artifact_id": r.get("artifact_id"),
+            "document_type": r.get("document_type"),
+            "type_confidence": r.get("type_confidence"),
+            "calls": r.get("calls", 0), "total_tokens": r.get("total_tokens", 0),
+            "cost_usd": r.get("cost_usd"),
+        } for r in vs_quality if isinstance(r, dict)],
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Graph analytics & RDF projection (folded into Observability)
+# --------------------------------------------------------------------------- #
+def graph_analytics(client: NavigateClient) -> dict:
+    health = _safe(client.graph_health) or {}
+    metrics = _safe(lambda: client.graph_metrics(top=10)) or {}
+    domains = _safe(client.graph_domains) or []
+    return {
+        "available": bool(health or metrics or domains),
+        "health": health,
+        "metrics": metrics,
+        "domains": [{
+            "domain": d.get("domain"),
+            "object_count": d.get("object_count", 0),
+            "relationship_count": d.get("relationship_count", 0),
+            "most_central": [{
+                "id": c.get("id"), "label": c.get("label"),
+                "degree": c.get("degree"),
+            } for c in (d.get("most_central") or [])],
+        } for d in domains if isinstance(d, dict)],
+    }
+
+
+def rdf_overview(client: NavigateClient) -> dict:
+    stats = _safe(client.rdf_stats) or {}
+    validation = _safe(client.rdf_validate) or {}
+    files = validation.get("files") or {}
+    return {
+        "available": bool(stats),
+        "stats": {
+            "objects": stats.get("objects", 0),
+            "relationships": stats.get("relationships", 0),
+            "evidence": stats.get("evidence", 0),
+            "knowledge_triples": stats.get("knowledge_triples", 0),
+            "relationship_triples": stats.get("relationship_triples", 0),
+            "provenance_triples": stats.get("provenance_triples", 0),
+        },
+        "validation": {
+            "files": [{
+                "name": name, "ok": f.get("ok"),
+                "triples": f.get("triples", 0), "error": f.get("error"),
+            } for name, f in files.items()],
+            "all_ok": (all(f.get("ok") for f in files.values())
+                       if files else None),
+        },
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Observability
 # --------------------------------------------------------------------------- #
 def observability(client: NavigateClient) -> dict:
@@ -786,6 +952,8 @@ def observability(client: NavigateClient) -> dict:
         "health": health,
         "link_stats": link_stats,
         "errors": sum(1 for j in jobs if j.get("status") in ("FAILED", "ERROR")),
+        "graph_analytics": graph_analytics(client),
+        "rdf": rdf_overview(client),
     }
 
 
@@ -946,10 +1114,31 @@ def list_object_names(client: NavigateClient) -> list[dict]:
 # --------------------------------------------------------------------------- #
 # GraphRAG
 # --------------------------------------------------------------------------- #
-def ask(client: NavigateClient, question: str) -> dict:
+#: GraphRAG reasoning modes Compas offers, with the Navigate call each maps to.
+#: ``compare``/``path-reason`` take two terms; the rest reason over one input.
+ASK_MODES = ("ask", "explain", "impact", "compare", "path-reason")
+ASK_MODE_LABELS = {
+    "ask": "Answer", "explain": "Explain", "impact": "Impact",
+    "compare": "Compare", "path-reason": "Path reasoning",
+}
+TWO_TERM_MODES = frozenset({"compare", "path-reason"})
+
+
+def ask(client: NavigateClient, question: str, *, mode: str = "ask",
+        term_b: str | None = None) -> dict:
     settings = get_settings()
+    depth = settings.ask_depth
     try:
-        resp = client.ask(question, depth=settings.ask_depth)
+        if mode == "explain":
+            resp = client.ask_explain(question, depth=depth)
+        elif mode == "impact":
+            resp = client.ask_impact(question, depth=depth)
+        elif mode == "compare":
+            resp = client.ask_compare(question, term_b or "", depth=depth)
+        elif mode == "path-reason":
+            resp = client.ask_path_reason(question, term_b or "", depth=depth)
+        else:
+            resp = client.ask(question, depth=depth)
     except Exception as exc:  # noqa: BLE001
         return {"question": question,
                 "answer": f"The Navigate assistant is unavailable: {exc}",

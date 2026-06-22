@@ -14,7 +14,7 @@ Compas's own graph-explorer widget — they are not a public REST surface.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from markupsafe import escape
 
 from .. import service
@@ -181,6 +181,55 @@ def knowledge_review(
             f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
             status_code=502)
     return render("partials/object_status.html", _ctx(request, obj=obj))
+
+
+@router.get("/knowledge/{object_id}/history", response_class=HTMLResponse)
+def knowledge_history(
+    request: Request, object_id: str, client: NavigateClient = Depends(get_client)
+):
+    """Lazy-loaded lifecycle / change history (HTMX fragment)."""
+    try:
+        history = service.object_history(client, object_id)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    return render("partials/object_history.html",
+                  _ctx(request, history=history))
+
+
+@router.post("/knowledge/{object_id}/assign-owner", response_class=HTMLResponse)
+def knowledge_assign_owner(
+    request: Request, object_id: str, owner_id: str = Form(...),
+    owner_type: str = Form("team"), client: NavigateClient = Depends(get_client),
+):
+    owner_id = owner_id.strip()
+    if not owner_id:
+        return HTMLResponse(
+            '<span class="badge badge-rejected">Owner is required</span>',
+            status_code=400)
+    try:
+        service.assign_owner(client, object_id, owner_type=owner_type,
+                             owner_id=owner_id)
+    except NavigateError as exc:
+        return HTMLResponse(
+            f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
+            status_code=502)
+    return HTMLResponse(
+        f'<span class="badge badge-active">Owner set · '
+        f'{escape(owner_id)}</span>')
+
+
+@router.post("/knowledge/{object_id}/flag", response_class=HTMLResponse)
+def knowledge_flag(
+    request: Request, object_id: str, client: NavigateClient = Depends(get_client)
+):
+    try:
+        service.flag_object(client, object_id)
+    except NavigateError as exc:
+        return HTMLResponse(
+            f'<span class="badge badge-rejected">{escape(str(exc))}</span>',
+            status_code=502)
+    return HTMLResponse(
+        '<span class="badge badge-warning">Flagged for review</span>')
 
 
 # --------------------------------------------------------------------------- #
@@ -516,6 +565,18 @@ def governance_bulk_approve(
 
 
 # --------------------------------------------------------------------------- #
+# Cost / LLM usage
+# --------------------------------------------------------------------------- #
+@router.get("/costs", response_class=HTMLResponse)
+def costs(request: Request, client: NavigateClient = Depends(get_client)):
+    try:
+        data = service.cost_overview(client)
+    except NavigateError as exc:
+        return _error_page(request, exc)
+    return render("pages/cost.html", _ctx(request, nav="costs", data=data))
+
+
+# --------------------------------------------------------------------------- #
 # Graph explorer (page + JSON view-helpers for the explorer widget)
 # --------------------------------------------------------------------------- #
 @router.get("/graph", response_class=HTMLResponse)
@@ -587,6 +648,54 @@ def graph_object(object_id: str, client: NavigateClient = Depends(get_client)):
     return JSONResponse(obj)
 
 
+#: Graph export formats Compas proxies → (client method, download filename).
+_GRAPH_EXPORTS = {
+    "gexf": ("graph_export_gexf", "navigate-graph.gexf"),
+    "graphml": ("graph_export_graphml", "navigate-graph.graphml"),
+}
+
+
+@router.get("/graph/export/{fmt}")
+def graph_export(
+    fmt: str, client: NavigateClient = Depends(get_client)
+):
+    """Proxy Navigate's GEXF/GraphML export, server-side, as a download.
+
+    Proxying (rather than linking the browser straight at Navigate) keeps the
+    API key server-side, in line with Compas's local-first model.
+    """
+    spec = _GRAPH_EXPORTS.get(fmt)
+    if spec is None:
+        return JSONResponse({"error": "Unknown format"}, status_code=400)
+    method, filename = spec
+    try:
+        content, content_type = getattr(client, method)()
+    except NavigateError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=502)
+    return Response(content, media_type=content_type, headers={
+        "Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+#: RDF serialisations Navigate offers → download extension.
+_RDF_FORMATS = {"turtle": "ttl", "json-ld": "jsonld", "nt": "nt"}
+
+
+@router.get("/rdf/export")
+def rdf_export(
+    fmt: str = "turtle", client: NavigateClient = Depends(get_client)
+):
+    """Proxy Navigate's RDF export (Turtle / JSON-LD / N-Triples) as a download."""
+    if fmt not in _RDF_FORMATS:
+        return JSONResponse({"error": "Unknown format"}, status_code=400)
+    try:
+        content, content_type = client.rdf_export(fmt=fmt)
+    except NavigateError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=502)
+    filename = f"navigate.{_RDF_FORMATS[fmt]}"
+    return Response(content, media_type=content_type, headers={
+        "Content-Disposition": f'attachment; filename="{filename}"'})
+
+
 # --------------------------------------------------------------------------- #
 # GraphRAG
 # --------------------------------------------------------------------------- #
@@ -599,16 +708,23 @@ def graphrag_page(request: Request):
         "Who owns Release Management?",
         "What is related to Cloud Migration?",
     ]
+    modes = [{"value": m, "label": service.ASK_MODE_LABELS[m],
+              "two_term": m in service.TWO_TERM_MODES}
+             for m in service.ASK_MODES]
     return render("pages/graphrag.html",
-                  _ctx(request, nav="graphrag", suggestions=suggestions))
+                  _ctx(request, nav="graphrag", suggestions=suggestions,
+                       modes=modes))
 
 
 @router.post("/graphrag/ask", response_class=HTMLResponse)
 def graphrag_ask(
-    request: Request, question: str = Form(...),
+    request: Request, question: str = Form(...), mode: str = Form("ask"),
+    term_b: str | None = Form(None),
     client: NavigateClient = Depends(get_client),
 ):
-    answer = service.ask(client, question)
+    if mode not in service.ASK_MODES:
+        mode = "ask"
+    answer = service.ask(client, question, mode=mode, term_b=term_b)
     return render("partials/graphrag_answer.html",
                   _ctx(request, answer=answer, question=question))
 

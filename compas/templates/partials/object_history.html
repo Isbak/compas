@@ -1,0 +1,24 @@
+{# Lifecycle / change history for a knowledge object (/governance/objects/{id}/history). #}
+{% if history.owner %}
+<div class="faint mb">
+  Owner: <span class="chip">{{ history.owner.owner_id }}</span>
+  <span class="faint">({{ history.owner.owner_type }}{% if history.owner.assigned_by %} · by {{ history.owner.assigned_by }}{% endif %})</span>
+</div>
+{% endif %}
+{% if history.changes %}
+<ul class="timeline">
+  {% for c in history.changes %}
+  <li>
+    <div><strong>{{ c.change_type|replace('_',' ')|title }}</strong>
+      {% if c.field %}<span class="faint">· {{ c.field }}</span>{% endif %}
+    </div>
+    {% if c.old_value or c.new_value %}
+    <div class="faint">{{ c.old_value or '∅' }} → {{ c.new_value or '∅' }}</div>
+    {% elif c.detail %}<div class="faint">{{ c.detail }}</div>{% endif %}
+    <div class="t-time">{{ c.detected_at|timeago }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">No recorded history.</div>
+{% endif %}
